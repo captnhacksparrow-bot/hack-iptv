@@ -1,0 +1,105 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Group to center and scale correctly inside the safe zone -->
+    <group android:name="pirate_logo"
+        android:translateX="0"
+        android:translateY="0">
+
+        <!-- Outer Gold Glow/Outline Circle for icon look -->
+        <path
+            android:fillColor="#FFB03A"
+            android:pathData="M54,22 A32,32 0 1,0 54,86 A32,32 0 1,0 54,22 Z"
+            android:fillAlpha="0.1" />
+
+        <!-- 1. Pirate Hat (Bicorn) with Gold Border -->
+        <!-- Hat Background Shadow -->
+        <path
+            android:fillColor="#0D0E11"
+            android:pathData="M24,48 C24,40 34,32 54,32 C74,32 84,40 84,48 C76,46 68,44 54,44 C40,44 32,46 24,48 Z" />
+
+        <!-- Hat Main Shape (Black) -->
+        <path
+            android:fillColor="#1E232B"
+            android:pathData="M26,46 C28,34 38,30 54,30 C70,30 80,34 82,46 C74,43 66,41 54,41 C42,41 34,43 26,46 Z" />
+
+        <!-- Hat Gold Trim (Top Curve) -->
+        <path
+            android:strokeColor="#FFB03A"
+            android:strokeWidth="1.5"
+            android:fillColor="#00000000"
+            android:pathData="M26,46 C28,34 38,30 54,30 C70,30 80,34 82,46" />
+
+        <!-- Tiny Skull Emblem on Hat -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M54,33 A2.5,2.5 0 1,0 54,38 A2.5,2.5 0 1,0 54,33 Z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M52.5,37.5 h3 v1.5 h-3 Z" />
+        <!-- Crossbones for emblem -->
+        <path
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="0.6"
+            android:pathData="M51,34 L57,39 M57,34 L51,39" />
+
+        <!-- 2. Blue Bandanna -->
+        <path
+            android:fillColor="#3A86FF"
+            android:pathData="M34,45 C38,44 46,43 54,43 C62,43 70,44 74,45 C73,48 70,50 68,50 C58,49 50,49 40,50 C38,50 35,48 34,45 Z" />
+        <!-- Bandanna Knot/Tails -->
+        <path
+            android:fillColor="#3A86FF"
+            android:pathData="M73,46 C75,46 78,48 77,52 C76,55 72,54 71,51 C70,49 71,47 73,46 Z" />
+        <path
+            android:fillColor="#2563EB"
+            android:pathData="M72,48 C74,49 75,52 74,54 C73,56 70,54 70,51 Z" />
+
+        <!-- 3. Skull Face -->
+        <!-- Main white skull base -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M37,49 C37,45 42,45 54,45 C66,45 71,45 71,49 C71,58 66,63 54,63 C42,63 37,58 37,49 Z" />
+
+        <!-- Skull Jaw/Teeth area -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M46,62 C46,66 48,68 54,68 C60,68 62,66 62,62 Z" />
+
+        <!-- Eye Sockets (Dark Navy/Black) -->
+        <path
+            android:fillColor="#1E232B"
+            android:pathData="M43,51 A3.5,4 0 1,0 43,59 A3.5,4 0 1,0 43,51 Z" />
+        <path
+            android:fillColor="#1E232B"
+            android:pathData="M65,51 A3.5,4 0 1,0 65,59 A3.5,4 0 1,0 65,51 Z" />
+
+        <!-- Nose Cavity -->
+        <path
+            android:fillColor="#1E232B"
+            android:pathData="M54,58 L52,61 L56,61 Z" />
+
+        <!-- Teeth lines -->
+        <path
+            android:strokeColor="#1E232B"
+            android:strokeWidth="1"
+            android:pathData="M50,62 L50,66 M54,62 L54,66 M58,62 L58,66" />
+
+        <!-- 4. Play button watermark overlay at bottom-left of skull for streaming context -->
+        <path
+            android:fillColor="#FFB03A"
+            android:pathData="M31,63 L39,59 L31,55 Z" />
+
+        <!-- Streaming radio waves -->
+        <path
+            android:strokeColor="#FFB03A"
+            android:strokeWidth="1.2"
+            android:strokeLineCap="round"
+            android:fillColor="#00000000"
+            android:pathData="M41,53 C44,55 44,59 41,61 M44,50 C49,53 49,59 44,62" />
+
+    </group>
+</vector>
