@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.BorderStroke
@@ -133,7 +134,9 @@ fun IptvDashboard(
                     .testTag("device_setup_card")
             ) {
                 Column(
-                    modifier = Modifier.padding(32.dp),
+                    modifier = Modifier
+                        .padding(32.dp)
+                        .verticalScroll(rememberScrollState()),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
@@ -286,17 +289,72 @@ fun IptvDashboard(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .padding(16.dp)
             ) {
-                TabContent(
-                    deviceMode = deviceMode ?: "MOBILE",
-                    activeTab = activeTab,
-                    viewModel = viewModel
-                )
+                Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+                    TabContent(
+                        deviceMode = deviceMode ?: "MOBILE",
+                        activeTab = activeTab,
+                        viewModel = viewModel,
+                        onNavigateToPlaylists = { activeTab = 6 }
+                    )
+                }
                 
                 // Show overlay only if in Live TV tab (tab 0)
                 if (activeTab == 0) {
                     LiveTvOverlay(visible = isOverlayVisible)
+                }
+
+                // Inline Video Player when not in fullscreen
+                val currentPlayUrl = activePlayUrl
+                val currentChannel = selectedChannel
+                if (currentPlayUrl != null && currentChannel != null && !isFullScreenMobile) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(16.dp)
+                            .width(280.dp)
+                            .height(158.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color.Black)
+                            .border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp))
+                    ) {
+                        val context = LocalContext.current
+                        VideoPlayer(
+                            videoUrl = currentPlayUrl,
+                            title = currentChannel.name,
+                            subtitle = "Live TV",
+                            onDownloadClick = { 
+                                viewModel.downloadActiveStream()
+                                android.widget.Toast.makeText(context, "Download started for ${currentChannel.name}", android.widget.Toast.LENGTH_SHORT).show()
+                            },
+                            isLiveStream = true,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                        
+                        // Controls Overlay
+                        Row(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(8.dp)
+                        ) {
+                            IconButton(
+                                onClick = { viewModel.clearSelectedChannel() },
+                                modifier = Modifier.background(Color.Black.copy(alpha = 0.5f), CircleShape).size(32.dp)
+                            ) {
+                                Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White, modifier = Modifier.size(16.dp))
+                            }
+                        }
+                        
+                        IconButton(
+                            onClick = { isFullScreenMobile = true },
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(8.dp)
+                                .background(Color.Black.copy(alpha = 0.5f), CircleShape).size(32.dp)
+                        ) {
+                            Icon(Icons.Default.Fullscreen, contentDescription = "Fullscreen", tint = Color.White, modifier = Modifier.size(16.dp))
+                        }
+                    }
                 }
             }
             
@@ -344,60 +402,176 @@ fun IptvDashboard(
                 }
             }
         }
+        
+        // Full screen video player overlay
+        val currentPlayUrl = activePlayUrl
+        val currentChannel = selectedChannel
+        if (currentPlayUrl != null && currentChannel != null && isFullScreenMobile) {
+            FullScreenPlayerOverlay(
+                activePlayUrl = currentPlayUrl,
+                selectedChannel = currentChannel,
+                viewModel = viewModel,
+                onClose = { viewModel.clearSelectedChannel() },
+                onMenuClick = { isFullScreenMobile = false }
+            )
+        }
     }
 }
 
 @Composable
-fun PlayerSection(
-    activePlayUrl: String?,
-    selectedChannel: ChannelEntity?,
-    isPlayingCatchup: Boolean,
-    selectedProgram: EpgProgramEntity?,
-    onDownloadClick: () -> Unit,
+fun FullScreenPlayerOverlay(
+    activePlayUrl: String,
+    selectedChannel: ChannelEntity,
+    viewModel: IptvViewModel,
+    onClose: () -> Unit,
+    onMenuClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    if (activePlayUrl != null && selectedChannel != null) {
-        val streamType = selectedChannel.getStreamType()
-        val subtitle = when {
-            isPlayingCatchup && selectedProgram != null -> "Catchup: ${selectedProgram.title}"
-            streamType == StreamType.MOVIE -> "Movie (On Demand)"
-            streamType == StreamType.TV_SHOW -> "TV Show (On Demand)"
-            streamType == StreamType.PPV -> "PPV Live Event"
-            else -> "Live TV Broadcast"
-        }
-        val isLiveStream = (streamType == StreamType.LIVE_TV || streamType == StreamType.PPV) && !isPlayingCatchup
+    var showEpgOverlay by remember { mutableStateOf(true) }
 
+    // Auto-dismiss EPG overlay after 5 seconds of inactivity
+    LaunchedEffect(showEpgOverlay) {
+        if (showEpgOverlay) {
+            kotlinx.coroutines.delay(5000)
+            showEpgOverlay = false
+        }
+    }
+
+    val streamType = selectedChannel.getStreamType()
+    val isPlayingCatchup by viewModel.isPlayingCatchup.collectAsState()
+    val selectedProgram by viewModel.selectedProgram.collectAsState()
+    
+    val subtitle = when {
+        isPlayingCatchup && selectedProgram != null -> "Catchup: ${selectedProgram?.title}"
+        streamType == StreamType.MOVIE -> "Movie (On Demand)"
+        streamType == StreamType.TV_SHOW -> "TV Show (On Demand)"
+        streamType == StreamType.PPV -> "PPV Live Event"
+        else -> "Live TV Broadcast"
+    }
+    val isLiveStream = (streamType == StreamType.LIVE_TV || streamType == StreamType.PPV) && !isPlayingCatchup
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            .clickable { showEpgOverlay = !showEpgOverlay }
+    ) {
+        // The Video Player
+        val context = LocalContext.current
         VideoPlayer(
             videoUrl = activePlayUrl,
             title = selectedChannel.name,
             subtitle = subtitle,
-            onDownloadClick = onDownloadClick,
+            onDownloadClick = {
+                viewModel.downloadActiveStream()
+                android.widget.Toast.makeText(context, "Download started for ${selectedChannel.name}", android.widget.Toast.LENGTH_SHORT).show()
+            },
             isLiveStream = isLiveStream,
-            modifier = modifier
-                .clip(RoundedCornerShape(12.dp))
-                .testTag("video_player")
+            modifier = Modifier.fillMaxSize()
         )
-    } else {
-        // Placeholder state when no channels are loaded or selected
-        Box(
-            modifier = modifier
-                .clip(RoundedCornerShape(16.dp))
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color(0xFF121824),
-                            Color(0xFF07090C)
-                        )
-                    )
-                )
-                .border(1.dp, Color(0xFFFFB03A).copy(alpha = 0.2f), RoundedCornerShape(16.dp)),
-            contentAlignment = Alignment.Center
+        
+        // Top right close button
+        IconButton(
+            onClick = onClose,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(16.dp)
+                .background(Color.Black.copy(alpha = 0.5f), CircleShape)
         ) {
-            CaptnHackLogo(
-                modifier = Modifier.padding(24.dp),
-                showText = true,
-                animate = true
-            )
+            Icon(Icons.Default.Close, contentDescription = "Close Player", tint = Color.White)
+        }
+
+        // Opaque overlay EPG on the left containing channel listings
+        AnimatedVisibility(
+            visible = showEpgOverlay,
+            enter = slideInHorizontally() + fadeIn(),
+            exit = slideOutHorizontally() + fadeOut(),
+            modifier = Modifier.align(Alignment.CenterStart)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(0.25f) // Takes 25% of the screen width
+                    .background(Color.Black.copy(alpha = 0.85f))
+                    .padding(16.dp)
+            ) {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                    ) {
+                        IconButton(onClick = onMenuClick) {
+                            Icon(Icons.Default.Menu, contentDescription = "Menu", tint = Color.White)
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Channels & EPG",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+                    
+                    val filteredChannels by viewModel.filteredChannels.collectAsState()
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(filteredChannels) { channel ->
+                            val isPlaying = channel.id == selectedChannel.id
+                            Card(
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (isPlaying) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f) else Color.Transparent
+                                ),
+                                border = BorderStroke(1.dp, if (isPlaying) MaterialTheme.colorScheme.primary else Color.DarkGray),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        viewModel.selectChannel(channel)
+                                        showEpgOverlay = true
+                                    }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    ChannelLogo(
+                                        logoUrl = channel.logoUrl,
+                                        channelName = channel.name,
+                                        modifier = Modifier.size(40.dp),
+                                        isPlaying = isPlaying
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Column {
+                                        Text(
+                                            text = channel.name,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = if (isPlaying) FontWeight.Bold else FontWeight.Normal,
+                                            color = Color.White,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        // Current EPG program could go here
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Menu button to reopen EPG overlay if it's hidden
+        if (!showEpgOverlay) {
+            IconButton(
+                onClick = { showEpgOverlay = true },
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(16.dp)
+                    .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+            ) {
+                Icon(Icons.Default.Menu, contentDescription = "Open Channels", tint = Color.White)
+            }
         }
     }
 }
@@ -414,6 +588,8 @@ fun ActiveChannelDetailsCard(
         Card(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             shape = RoundedCornerShape(12.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
             modifier = Modifier.fillMaxWidth()
         ) {
             Row(
@@ -425,7 +601,8 @@ fun ActiveChannelDetailsCard(
                 ChannelLogo(
                     logoUrl = selectedChannel.logoUrl,
                     channelName = selectedChannel.name,
-                    modifier = Modifier.size(56.dp)
+                    modifier = Modifier.size(56.dp),
+                    isPlaying = true
                 )
 
                 Spacer(modifier = Modifier.width(16.dp))
@@ -542,7 +719,8 @@ fun DashboardTabsHeader(
 fun TabContent(
     deviceMode: String?,
     activeTab: Int,
-    viewModel: IptvViewModel
+    viewModel: IptvViewModel,
+    onNavigateToPlaylists: () -> Unit
 ) {
     when (activeTab) {
         0 -> ChannelsExplorerTab(viewModel = viewModel)
@@ -552,7 +730,7 @@ fun TabContent(
         4 -> EpgGuideTab(viewModel = viewModel)
         5 -> RecordingsTab(viewModel = viewModel)
         6 -> PlaylistsTab(viewModel = viewModel)
-        7 -> ProfileTab(viewModel = viewModel)
+        7 -> ProfileTab(viewModel = viewModel, onNavigateToPlaylists = onNavigateToPlaylists)
         8 -> {
             if (deviceMode == "MOBILE") {
                 TvControllerTab(viewModel = viewModel)
@@ -560,6 +738,163 @@ fun TabContent(
                 TvConnectionsTab(viewModel = viewModel)
             }
         }
+    }
+}
+
+@Composable
+fun VodCard(channel: ChannelEntity, activeChannel: ChannelEntity?, viewModel: IptvViewModel) {
+    var showInfoDialog by remember { mutableStateOf(false) }
+    val isPlaying = activeChannel?.id == channel.id
+    val scale by animateFloatAsState(targetValue = if (isPlaying) 1.02f else 1f, label = "card_scale")
+    
+    var vodInfo by remember { mutableStateOf<org.json.JSONObject?>(null) }
+    var isLoadingInfo by remember { mutableStateOf(false) }
+
+    LaunchedEffect(showInfoDialog) {
+        if (showInfoDialog && vodInfo == null) {
+            isLoadingInfo = true
+            vodInfo = viewModel.getVodOrSeriesInfo(channel.streamUrl)
+            isLoadingInfo = false
+        }
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = if (isPlaying) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isPlaying) 8.dp else 2.dp),
+        border = if (isPlaying) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
+        modifier = Modifier
+            .fillMaxWidth()
+            .graphicsLayer(
+                scaleX = scale,
+                scaleY = scale,
+                shadowElevation = if (isPlaying) 16f else 4f,
+                shape = RoundedCornerShape(12.dp),
+                clip = true
+            )
+            .clickable { viewModel.selectChannel(channel) }
+    ) {
+        Column {
+            Box(modifier = Modifier.fillMaxWidth().height(160.dp)) {
+                if (!channel.logoUrl.isNullOrEmpty()) {
+                    AsyncImage(
+                        model = channel.logoUrl,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
+                        Icon(imageVector = Icons.Default.Movie, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                
+                // Play button overlay
+                Box(
+                    modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.2f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlayCircleOutline,
+                        contentDescription = "Play",
+                        tint = Color.White.copy(alpha = 0.8f),
+                        modifier = Modifier.size(48.dp)
+                    )
+                }
+                
+                IconButton(
+                    onClick = { showInfoDialog = true },
+                    modifier = Modifier.align(Alignment.TopEnd)
+                ) {
+                    Icon(Icons.Default.Info, contentDescription = "Info", tint = Color.White)
+                }
+
+                IconButton(
+                    onClick = { viewModel.toggleFavorite(channel) },
+                    modifier = Modifier.align(Alignment.TopStart)
+                ) {
+                    Icon(
+                        imageVector = if (channel.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        contentDescription = "Favorite Toggle",
+                        tint = if (channel.isFavorite) Color.Red else Color.White
+                    )
+                }
+            }
+
+            Column(modifier = Modifier.padding(8.dp)) {
+                Text(
+                    text = channel.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = channel.groupTitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (isPlaying) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+
+    if (showInfoDialog) {
+        AlertDialog(
+            onDismissRequest = { showInfoDialog = false },
+            title = { Text(text = channel.name) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    if (!channel.logoUrl.isNullOrEmpty()) {
+                        AsyncImage(
+                            model = channel.logoUrl,
+                            contentDescription = null,
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.fillMaxWidth().height(150.dp)
+                        )
+                    }
+                    Text("Genre: ${channel.groupTitle}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                    
+                    if (isLoadingInfo) {
+                        CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+                    } else if (vodInfo != null) {
+                        val info = vodInfo?.optJSONObject("info")
+                        if (info != null) {
+                            val description = info.optString("plot", "").takeIf { it.isNotBlank() } ?: info.optString("description", "No description available.")
+                            val rating = info.optString("rating", "N/A")
+                            val cast = info.optString("cast", "N/A")
+                            val director = info.optString("director", "N/A")
+                            val releaseDate = info.optString("release_date", "N/A")
+                            
+                            Text("Rating: $rating", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                            Text("Release Date: $releaseDate", style = MaterialTheme.typography.bodySmall)
+                            Text("Director: $director", style = MaterialTheme.typography.bodySmall)
+                            Text("Cast: $cast", style = MaterialTheme.typography.bodySmall)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("Plot:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                            Text(description, style = MaterialTheme.typography.bodySmall)
+                        } else {
+                            Text("Additional metadata is not available for this item.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    } else {
+                        Text("Failed to load API info.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = { 
+                    showInfoDialog = false
+                    viewModel.selectChannel(channel)
+                }) {
+                    Text("Play Now")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showInfoDialog = false }) {
+                    Text("Close")
+                }
+            }
+        )
     }
 }
 
@@ -665,81 +1000,129 @@ fun ChannelsExplorerTab(viewModel: IptvViewModel) {
                     }
                 }
             } else {
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .testTag("channel_list")
-                ) {
-                    items(channels) { channel ->
-                        val isPlaying = activeChannel?.id == channel.id
-                        Card(
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (isPlaying) {
-                                    MaterialTheme.colorScheme.primaryContainer
-                                } else {
-                                    MaterialTheme.colorScheme.surfaceVariant
+                val streamType = channels.firstOrNull()?.getStreamType()
+                if (streamType == StreamType.MOVIE || streamType == StreamType.TV_SHOW) {
+                    val netflix = channels.filter { it.name.contains("Netflix", ignoreCase = true) || it.groupTitle.contains("Netflix", ignoreCase = true) }
+                    val disney = channels.filter { it.name.contains("Disney", ignoreCase = true) || it.groupTitle.contains("Disney", ignoreCase = true) }
+                    val others = channels.filter { it !in netflix && it !in disney }
+
+                    Row(modifier = Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (netflix.isNotEmpty()) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Netflix", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(8.dp), color = Color.Red)
+                                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    items(netflix) { channel -> VodCard(channel, activeChannel, viewModel) }
                                 }
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { viewModel.selectChannel(channel) }
-                        ) {
-                            Row(
+                            }
+                        }
+                        if (disney.isNotEmpty()) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Disney+", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(8.dp), color = Color(0xFF1E88E5))
+                                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    items(disney) { channel -> VodCard(channel, activeChannel, viewModel) }
+                                }
+                            }
+                        }
+                        Column(modifier = Modifier.weight(if (netflix.isEmpty() && disney.isEmpty()) 1f else 1.5f)) {
+                            Text("Other", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(8.dp))
+                            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                items(others) { channel -> VodCard(channel, activeChannel, viewModel) }
+                            }
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .testTag("channel_list")
+                    ) {
+                        items(channels) { channel ->
+                            val isPlaying = activeChannel?.id == channel.id
+                            val scale by animateFloatAsState(
+                                targetValue = if (isPlaying) 1.02f else 1f,
+                                label = "card_scale"
+                            )
+                            Card(
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (isPlaying) {
+                                        MaterialTheme.colorScheme.primaryContainer
+                                    } else {
+                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
+                                    }
+                                ),
+                                elevation = CardDefaults.cardElevation(
+                                    defaultElevation = if (isPlaying) 8.dp else 2.dp
+                                ),
+                                border = if (isPlaying) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                                    .graphicsLayer(
+                                        scaleX = scale,
+                                        scaleY = scale,
+                                        shadowElevation = if (isPlaying) 16f else 4f,
+                                        shape = RoundedCornerShape(12.dp),
+                                        clip = true
+                                    )
+                                    .clickable { viewModel.selectChannel(channel) }
                             ) {
-                                ChannelLogo(
-                                    logoUrl = channel.logoUrl,
-                                    channelName = channel.name,
-                                    modifier = Modifier.size(48.dp)
-                                )
-
-                                Spacer(modifier = Modifier.width(12.dp))
-
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = channel.name,
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.SemiBold,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    ChannelLogo(
+                                        logoUrl = channel.logoUrl,
+                                        channelName = channel.name,
+                                        modifier = Modifier.size(48.dp),
+                                        isPlaying = isPlaying
                                     )
-                                    Text(
-                                        text = channel.groupTitle,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = if (isPlaying) {
-                                            MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                                        } else {
-                                            MaterialTheme.colorScheme.onSurfaceVariant
-                                        }
-                                    )
-                                }
 
-                                if (deviceMode == "MOBILE" && isTvConnected) {
-                                    IconButton(
-                                        onClick = {
-                                            viewModel.sendRemoteCommand("PLAY_FEED|${channel.name}|${channel.streamUrl}|${channel.logoUrl ?: ""}|${channel.groupTitle}")
-                                        },
-                                        modifier = Modifier.testTag("cast_channel_${channel.id}")
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Cast,
-                                            contentDescription = "Cast to TV",
-                                            tint = MaterialTheme.colorScheme.primary
+                                    Spacer(modifier = Modifier.width(12.dp))
+
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = channel.name,
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.SemiBold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = channel.groupTitle,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = if (isPlaying) {
+                                                MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                            } else {
+                                                MaterialTheme.colorScheme.onSurfaceVariant
+                                            }
                                         )
                                     }
-                                }
 
-                                IconButton(onClick = { viewModel.toggleFavorite(channel) }) {
-                                    Icon(
-                                        imageVector = if (channel.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                                        contentDescription = "Favorite Toggle",
-                                        tint = if (channel.isFavorite) Color.Red else MaterialTheme.colorScheme.onSurface
-                                    )
+                                    if (deviceMode == "MOBILE" && isTvConnected) {
+                                        IconButton(
+                                            onClick = {
+                                                viewModel.sendRemoteCommand("PLAY_FEED|${channel.name}|${channel.streamUrl}|${channel.logoUrl ?: ""}|${channel.groupTitle}")
+                                            },
+                                            modifier = Modifier.testTag("cast_channel_${channel.id}")
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Cast,
+                                                contentDescription = "Cast to TV",
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+                                    }
+
+                                    IconButton(onClick = { viewModel.toggleFavorite(channel) }) {
+                                        Icon(
+                                            imageVector = if (channel.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                            contentDescription = "Favorite Toggle",
+                                            tint = if (channel.isFavorite) Color.Red else MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -882,7 +1265,7 @@ fun EpgGuideTab(viewModel: IptvViewModel) {
 
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        // Status Badge
+                        // Status Badge & Action
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -939,6 +1322,29 @@ fun EpgGuideTab(viewModel: IptvViewModel) {
                                             fontWeight = FontWeight.Bold
                                         )
                                     }
+                                }
+                            }
+                            
+                            val context = LocalContext.current
+                            if (isCurrent || isFuture) {
+                                IconButton(
+                                    onClick = {
+                                        if (isCurrent) {
+                                            viewModel.addCustomUrlDownload(program.title, selectedChannel!!.streamUrl)
+                                            android.widget.Toast.makeText(context, "Recording started for ${program.title}", android.widget.Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            viewModel.scheduleRecording(program.title, selectedChannel!!.streamUrl)
+                                            android.widget.Toast.makeText(context, "Recording scheduled for ${program.title}", android.widget.Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (isCurrent) Icons.Default.FiberManualRecord else Icons.Default.AlarmAdd,
+                                        contentDescription = if (isCurrent) "Record" else "Schedule",
+                                        tint = if (isCurrent) Color.Red else MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
                                 }
                             }
                         }
@@ -1587,6 +1993,7 @@ fun PlaylistsTab(viewModel: IptvViewModel) {
     val errorMsg by viewModel.playlistAddError.collectAsState()
 
     var isXtreamMode by remember { mutableStateOf(false) }
+    var showAddForm by remember { mutableStateOf(false) }
 
     // M3U form state
     var playlistName by remember { mutableStateOf("") }
@@ -1621,205 +2028,163 @@ fun PlaylistsTab(viewModel: IptvViewModel) {
         }
     }
 
-    val sampleUrl = "http://tvload.win/get.php?username=694788876178&password=023656073374&output=ts&type=m3u_plus"
-
-    Column(modifier = Modifier.fillMaxSize()) {
-        Text(
-            text = "Playlist & Server Manager",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 2.dp)
-        )
-
-        Text(
-            text = "Offline-First: All playlists, preferences, and favorites are stored locally in your device's private SQLite database. Internet is only required to load raw stream channels and remote commands.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-            modifier = Modifier.padding(bottom = 12.dp)
-        )
-
-        // Tab-like FilterChips to choose between M3U and Xtream Codes API
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        // Header
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            FilterChip(
-                selected = !isXtreamMode,
-                onClick = { isXtreamMode = false },
-                label = { Text("Standard M3U URL / File") },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.Link,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-            )
-            FilterChip(
-                selected = isXtreamMode,
-                onClick = { isXtreamMode = true },
-                label = { Text("Xtream Codes API") },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.Dns,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-            )
-        }
-
-        if (!isXtreamMode) {
-            // M3U Input Form
-            OutlinedTextField(
-                value = playlistName,
-                onValueChange = { playlistName = it },
-                label = { Text("Playlist Name") },
-                singleLine = true,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("playlist_name_field")
-            )
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            OutlinedTextField(
-                value = playlistUrl,
-                onValueChange = { playlistUrl = it },
-                label = { Text("M3U Playlist URL or File URI") },
-                singleLine = true,
-                trailingIcon = {
-                    IconButton(onClick = { filePickerLauncher.launch("*/*") }) {
-                        Icon(
-                            imageVector = Icons.Default.FolderOpen,
-                            contentDescription = "Pick Local File",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("playlist_url_field")
-            )
-        } else {
-            // Xtream Codes Input Form
-            OutlinedTextField(
-                value = xtreamName,
-                onValueChange = { xtreamName = it },
-                label = { Text("Server Name (e.g. Premium Live)") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            OutlinedTextField(
-                value = xtreamServer,
-                onValueChange = { xtreamServer = it },
-                label = { Text("Xtream Server URL (e.g. http://my-iptv.com:8080)") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedTextField(
-                    value = xtreamUser,
-                    onValueChange = { xtreamUser = it },
-                    label = { Text("Username") },
-                    singleLine = true,
-                    modifier = Modifier.weight(1f)
-                )
-
-                OutlinedTextField(
-                    value = xtreamPass,
-                    onValueChange = { xtreamPass = it },
-                    label = { Text("Password") },
-                    singleLine = true,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        if (errorMsg != null) {
-            Text(
-                text = errorMsg!!,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(bottom = 6.dp)
-            )
-        }
-
-        Button(
-            onClick = {
-                if (!isXtreamMode) {
-                    if (playlistName.isNotEmpty() && playlistUrl.isNotEmpty()) {
-                        viewModel.addPlaylist(playlistName, playlistUrl)
-                        playlistName = ""
-                        playlistUrl = ""
-                    }
-                } else {
-                    if (xtreamName.isNotEmpty() && xtreamServer.isNotEmpty() && xtreamUser.isNotEmpty() && xtreamPass.isNotEmpty()) {
-                        viewModel.addXtreamPlaylist(xtreamName, xtreamServer, xtreamUser, xtreamPass)
-                        xtreamName = ""
-                        xtreamServer = ""
-                        xtreamUser = ""
-                        xtreamPass = ""
-                    }
-                }
-            },
-            enabled = !isAdding && (
-                (!isXtreamMode && playlistName.isNotEmpty() && playlistUrl.isNotEmpty()) ||
-                (isXtreamMode && xtreamName.isNotEmpty() && xtreamServer.isNotEmpty() && xtreamUser.isNotEmpty() && xtreamPass.isNotEmpty())
-            ),
-            modifier = Modifier
-                .fillMaxWidth()
-                .testTag("add_playlist_button")
-        ) {
-            if (isAdding) {
-                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Color.White)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Syncing IPTV Metadata on Local DB...")
-            } else {
-                Text(if (isXtreamMode) "Connect & Sync Xtream API" else "Add M3U Playlist")
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Active Playlists",
-                style = MaterialTheme.typography.titleSmall,
+                text = "Playlists",
+                style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
             )
             Button(
-                onClick = { viewModel.refreshAllPlaylists() },
-                modifier = Modifier.testTag("refresh_all_playlists_button")
+                onClick = { showAddForm = !showAddForm }
             ) {
-                Text("Refresh All")
+                Icon(if (showAddForm) Icons.Default.Close else Icons.Default.Add, contentDescription = null)
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(if (showAddForm) "Cancel" else "Add Playlist")
             }
         }
-        
-        Spacer(modifier = Modifier.height(8.dp))
 
-        if (playlists.isEmpty()) {
+        if (showAddForm) {
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    // Tab-like FilterChips to choose between M3U and Xtream Codes API
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilterChip(
+                            selected = !isXtreamMode,
+                            onClick = { isXtreamMode = false },
+                            label = { Text("M3U URL / File") },
+                            leadingIcon = { Icon(imageVector = Icons.Default.Link, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                        )
+                        FilterChip(
+                            selected = isXtreamMode,
+                            onClick = { isXtreamMode = true },
+                            label = { Text("Xtream API") },
+                            leadingIcon = { Icon(imageVector = Icons.Default.Dns, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                        )
+                    }
+
+                    if (!isXtreamMode) {
+                        OutlinedTextField(
+                            value = playlistName,
+                            onValueChange = { playlistName = it },
+                            label = { Text("Playlist Name") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth().testTag("playlist_name_field")
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        OutlinedTextField(
+                            value = playlistUrl,
+                            onValueChange = { playlistUrl = it },
+                            label = { Text("M3U Playlist URL or File URI") },
+                            singleLine = true,
+                            trailingIcon = {
+                                IconButton(onClick = { filePickerLauncher.launch("*/*") }) {
+                                    Icon(imageVector = Icons.Default.FolderOpen, contentDescription = "Pick Local File", tint = MaterialTheme.colorScheme.primary)
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().testTag("playlist_url_field")
+                        )
+                    } else {
+                        OutlinedTextField(
+                            value = xtreamName,
+                            onValueChange = { xtreamName = it },
+                            label = { Text("Server Name") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        OutlinedTextField(
+                            value = xtreamServer,
+                            onValueChange = { xtreamServer = it },
+                            label = { Text("Server URL (e.g. http://iptv.com:8080)") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = xtreamUser,
+                                onValueChange = { xtreamUser = it },
+                                label = { Text("Username") },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                            OutlinedTextField(
+                                value = xtreamPass,
+                                onValueChange = { xtreamPass = it },
+                                label = { Text("Password") },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    if (errorMsg != null) {
+                        Text(
+                            text = errorMsg!!,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(bottom = 6.dp)
+                        )
+                    }
+
+                    Button(
+                        onClick = {
+                            if (!isXtreamMode) {
+                                if (playlistName.isNotEmpty() && playlistUrl.isNotEmpty()) {
+                                    viewModel.addPlaylist(playlistName, playlistUrl)
+                                    playlistName = ""
+                                    playlistUrl = ""
+                                    showAddForm = false
+                                }
+                            } else {
+                                if (xtreamName.isNotEmpty() && xtreamServer.isNotEmpty() && xtreamUser.isNotEmpty() && xtreamPass.isNotEmpty()) {
+                                    viewModel.addXtreamPlaylist(xtreamName, xtreamServer, xtreamUser, xtreamPass)
+                                    xtreamName = ""
+                                    xtreamServer = ""
+                                    xtreamUser = ""
+                                    xtreamPass = ""
+                                    showAddForm = false
+                                }
+                            }
+                        },
+                        enabled = !isAdding && (
+                            (!isXtreamMode && playlistName.isNotEmpty() && playlistUrl.isNotEmpty()) ||
+                            (isXtreamMode && xtreamName.isNotEmpty() && xtreamServer.isNotEmpty() && xtreamUser.isNotEmpty() && xtreamPass.isNotEmpty())
+                        ),
+                        modifier = Modifier.fillMaxWidth().testTag("add_playlist_button")
+                    ) {
+                        if (isAdding) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Color.White)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Syncing IPTV Metadata...")
+                        } else {
+                            Text(if (isXtreamMode) "Connect & Sync Xtream API" else "Add M3U Playlist")
+                        }
+                    }
+                }
+            }
+        }
+
+        // Active Playlists List
+        if (playlists.isEmpty() && !showAddForm) {
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
+                modifier = Modifier.fillMaxWidth().weight(1f),
                 contentAlignment = Alignment.Center
             ) {
                 Text("No playlists added yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -1827,33 +2192,20 @@ fun PlaylistsTab(viewModel: IptvViewModel) {
         } else {
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .testTag("playlists_list")
+                modifier = Modifier.weight(1f).fillMaxWidth().testTag("playlists_list")
             ) {
                 items(playlists) { playlist ->
                     val selectedPlaylistId by viewModel.selectedPlaylistId.collectAsState()
                     val isActive = selectedPlaylistId == playlist.id
                     Card(
                         colors = CardDefaults.cardColors(
-                            containerColor = if (isActive) {
-                                MaterialTheme.colorScheme.primaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.surfaceVariant
-                            }
+                            containerColor = if (isActive) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
                         ),
-                        border = if (isActive) {
-                            androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
-                        } else null,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { viewModel.selectPlaylist(playlist.id) }
+                        border = if (isActive) androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
+                        modifier = Modifier.fillMaxWidth().clickable { viewModel.selectPlaylist(playlist.id) }
                     ) {
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
+                            modifier = Modifier.fillMaxWidth().padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
@@ -1866,10 +2218,7 @@ fun PlaylistsTab(viewModel: IptvViewModel) {
                                     )
                                     if (isActive) {
                                         Spacer(modifier = Modifier.width(8.dp))
-                                        SuggestionChip(
-                                            onClick = {},
-                                            label = { Text("Active") }
-                                        )
+                                        SuggestionChip(onClick = {}, label = { Text("Active") })
                                     }
                                 }
                                 Text(
@@ -1888,18 +2237,10 @@ fun PlaylistsTab(viewModel: IptvViewModel) {
                             }
                             Row {
                                 IconButton(onClick = { viewModel.refreshPlaylist(playlist.id) }) {
-                                    Icon(
-                                        imageVector = Icons.Default.Refresh,
-                                        contentDescription = "Refresh Playlist",
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
+                                    Icon(imageVector = Icons.Default.Refresh, contentDescription = "Refresh Playlist", tint = MaterialTheme.colorScheme.primary)
                                 }
                                 IconButton(onClick = { viewModel.deletePlaylist(playlist.id) }) {
-                                    Icon(
-                                        imageVector = Icons.Default.Delete,
-                                        contentDescription = "Delete Playlist",
-                                        tint = MaterialTheme.colorScheme.error
-                                    )
+                                    Icon(imageVector = Icons.Default.Delete, contentDescription = "Delete Playlist", tint = MaterialTheme.colorScheme.error)
                                 }
                             }
                         }
@@ -1911,7 +2252,7 @@ fun PlaylistsTab(viewModel: IptvViewModel) {
 }
 
 @Composable
-fun ProfileTab(viewModel: IptvViewModel) {
+fun ProfileTab(viewModel: IptvViewModel, onNavigateToPlaylists: () -> Unit) {
     val username by viewModel.premiumUsername.collectAsState()
     val password by viewModel.premiumPassword.collectAsState()
     val serverUrl by viewModel.premiumServerUrl.collectAsState()
@@ -1934,32 +2275,9 @@ fun ProfileTab(viewModel: IptvViewModel) {
     val moviesCount = remember(channels) { channels.count { it.getStreamType() == StreamType.MOVIE } }
     val seriesCount = remember(channels) { channels.count { it.getStreamType() == StreamType.TV_SHOW } }
 
-    var editUsername by remember { mutableStateOf(username) }
-    var editPassword by remember { mutableStateOf(password) }
-    var editServer by remember { mutableStateOf(serverUrl) }
-    var editStatus by remember { mutableStateOf(if (status.isEmpty()) "Active" else status) }
-    var editExpiry by remember { mutableStateOf(if (expiry.isEmpty()) "Lifetime" else expiry) }
-    var editMaxConn by remember { mutableStateOf(maxConn) }
-    var editActiveConn by remember { mutableStateOf(activeConn) }
-
-    var showAddSubscription by remember { mutableStateOf(username.isNotEmpty()) }
-    var isEditing by remember { mutableStateOf(false) }
-
     var localAvatarInput by remember { mutableStateOf(avatarUrl) }
 
     val context = LocalContext.current
-
-    LaunchedEffect(username, password, serverUrl, status, expiry, maxConn, activeConn) {
-        if (!isEditing) {
-            editUsername = username
-            editPassword = password
-            editServer = serverUrl
-            editStatus = if (status.isEmpty()) "Active" else status
-            editExpiry = if (expiry.isEmpty()) "Lifetime" else expiry
-            editMaxConn = maxConn
-            editActiveConn = activeConn
-        }
-    }
 
     Column(
         modifier = Modifier
@@ -2145,182 +2463,42 @@ fun ProfileTab(viewModel: IptvViewModel) {
             }
         }
 
-        // YOU'RE A GUEST - EXPANDABLE IPTV SUBSCRIPTION BANNER
-        if (username.isEmpty()) {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
-                modifier = Modifier.fillMaxWidth()
+        // IPTV SUBSCRIPTION BANNER
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.KeyboardAlt,
-                        contentDescription = "Add subscription",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(36.dp)
-                    )
-                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(
-                            text = "YOU'RE A GUEST / Add paid subscription",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = "Right now you only have the free public iptv-org channels. Add your own Xtream code or M3U URL from any paid provider to unlock thousands of HD/4K channels, movies and series.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Button(
-                        onClick = { showAddSubscription = !showAddSubscription },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text("Add Subscription", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
-
-        // XTREAM CODES CREDENTIALS LOGIN CARD
-        if (showAddSubscription || username.isNotEmpty()) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-            ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Icon(
+                    imageVector = Icons.Default.KeyboardAlt,
+                    contentDescription = "Add subscription",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(36.dp)
+                )
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        text = if (username.isEmpty()) "Connect Xtream IPTV Subscription" else "Subscription Credentials",
+                        text = "Add paid subscription",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        color = MaterialTheme.colorScheme.onSurface
                     )
-
-                    OutlinedTextField(
-                        value = editUsername,
-                        onValueChange = { editUsername = it },
-                        label = { Text("Username") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                    Text(
+                        text = "Add your own Xtream code or M3U URL from any paid provider to unlock thousands of HD/4K channels, movies and series.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-
-                    OutlinedTextField(
-                        value = editPassword,
-                        onValueChange = { editPassword = it },
-                        label = { Text("Password") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    OutlinedTextField(
-                        value = editServer,
-                        onValueChange = { editServer = it },
-                        label = { Text("IPTV Portal/Server URL") },
-                        placeholder = { Text("e.g. http://provider.com:8080") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = editStatus,
-                            onValueChange = { editStatus = it },
-                            label = { Text("Status") },
-                            singleLine = true,
-                            modifier = Modifier.weight(1f)
-                        )
-
-                        OutlinedTextField(
-                            value = editExpiry,
-                            onValueChange = { editExpiry = it },
-                            label = { Text("Expiry Date") },
-                            singleLine = true,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = editActiveConn,
-                            onValueChange = { editActiveConn = it },
-                            label = { Text("Active Connections") },
-                            singleLine = true,
-                            modifier = Modifier.weight(1f)
-                        )
-
-                        OutlinedTextField(
-                            value = editMaxConn,
-                            onValueChange = { editMaxConn = it },
-                            label = { Text("Max Connections") },
-                            singleLine = true,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Button(
-                            onClick = {
-                                if (editUsername.isNotEmpty()) {
-                                    viewModel.updatePremiumProfile(
-                                        username = editUsername,
-                                        password = editPassword,
-                                        serverUrl = editServer,
-                                        status = editStatus,
-                                        expiry = editExpiry,
-                                        maxConn = editMaxConn,
-                                        activeConn = editActiveConn,
-                                        type = "Custom Xtream Account",
-                                        isMock = true
-                                    )
-                                    isEditing = false
-                                    android.widget.Toast.makeText(context, "Credentials saved locally!", android.widget.Toast.LENGTH_SHORT).show()
-                                }
-                            },
-                            enabled = editUsername.isNotEmpty(),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(imageVector = Icons.Default.Check, contentDescription = null)
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Save Locally")
-                        }
-
-                        if (username.isNotEmpty()) {
-                            Button(
-                                onClick = {
-                                    viewModel.clearPremiumProfile()
-                                    editUsername = ""
-                                    editPassword = ""
-                                    editServer = ""
-                                    editStatus = "Active"
-                                    editExpiry = "Lifetime"
-                                    editActiveConn = "0"
-                                    editMaxConn = "1"
-                                    android.widget.Toast.makeText(context, "Premium profile cleared.", android.widget.Toast.LENGTH_SHORT).show()
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(imageVector = Icons.Default.DeleteForever, contentDescription = null)
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Clear Profile")
-                            }
-                        }
-                    }
+                }
+                Button(
+                    onClick = onNavigateToPlaylists,
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("Add pay service", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -2568,16 +2746,34 @@ fun ProfileTab(viewModel: IptvViewModel) {
 fun ChannelLogo(
     logoUrl: String?,
     channelName: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isPlaying: Boolean = false
 ) {
+    val rotation by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (isPlaying) -5f else 0f,
+        label = "rotation"
+    )
+    val scale by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (isPlaying) 1.15f else 1.0f,
+        label = "scale"
+    )
+    
+    val tiltModifier = modifier
+        .graphicsLayer(
+            rotationZ = rotation,
+            scaleX = scale,
+            scaleY = scale
+        )
+
     if (!logoUrl.isNullOrEmpty()) {
         AsyncImage(
             model = logoUrl,
             contentDescription = "$channelName logo",
             contentScale = ContentScale.Crop,
-            modifier = modifier
+            modifier = tiltModifier
                 .clip(RoundedCornerShape(8.dp))
-                .background(Color.White.copy(alpha = 0.1f))
+                .background(Color.White.copy(alpha = 0.1f)),
+            onError = { /* Fail to initials fallback */ }
         )
     } else {
         // High-end initials fallback logo
@@ -2588,7 +2784,7 @@ fun ChannelLogo(
             .joinToString("")
 
         Box(
-            modifier = modifier
+            modifier = tiltModifier
                 .clip(RoundedCornerShape(8.dp))
                 .background(
                     Brush.radialGradient(

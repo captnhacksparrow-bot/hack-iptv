@@ -273,6 +273,12 @@ class IptvViewModel(
 
         // Initial refresh check
         viewModelScope.launch {
+            // Add demo playlist if empty
+            val currentPlaylists = repository.getStaticAllPlaylists()
+            if (currentPlaylists.isEmpty()) {
+                repository.addPlaylist("Demo Playlist", "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8")
+            }
+
             val lastRefresh = prefs.getLong("last_refresh_time", 0L)
             val now = System.currentTimeMillis()
             val twoDays = 2 * 24 * 60 * 60 * 1000L
@@ -359,6 +365,13 @@ class IptvViewModel(
     fun selectChannel(channel: ChannelEntity) {
         _selectedChannel.value = channel
         _activePlayUrl.value = channel.streamUrl
+        _isPlayingCatchup.value = false
+        _selectedProgram.value = null
+    }
+
+    fun clearSelectedChannel() {
+        _selectedChannel.value = null
+        _activePlayUrl.value = null
         _isPlayingCatchup.value = false
         _selectedProgram.value = null
     }
@@ -580,6 +593,23 @@ class IptvViewModel(
         }
     }
 
+    suspend fun getVodOrSeriesInfo(streamUrl: String): org.json.JSONObject? {
+        val regex = Regex("^(https?://[^/]+)/(movie|series)/([^/]+)/([^/]+)/([^/]+)$")
+        val matchResult = regex.find(streamUrl) ?: return null
+        val server = matchResult.groupValues[1]
+        val type = matchResult.groupValues[2]
+        val username = matchResult.groupValues[3]
+        val password = matchResult.groupValues[4]
+        val idWithExt = matchResult.groupValues[5]
+        val id = idWithExt.substringBeforeLast(".")
+        
+        val action = if (type == "movie") "get_vod_info" else "get_series_info"
+        val idParam = if (type == "movie") "vod_id" else "series_id"
+        val url = "$server/player_api.php?username=$username&password=$password&action=$action&$idParam=$id"
+        
+        return repository.fetchJsonObjectPublic(url)
+    }
+
     fun downloadActiveStream() {
         val channel = _selectedChannel.value ?: return
         val currentUrl = _activePlayUrl.value ?: return
@@ -613,6 +643,13 @@ class IptvViewModel(
             val downloadId = repository.createDownloadEntity(name, url)
             val path = File(getApplication<Application>().filesDir, "recording_${System.currentTimeMillis()}.ts").absolutePath
             repository.startDownload(downloadId, name, url, path)
+        }
+    }
+
+    fun scheduleRecording(name: String, url: String) {
+        viewModelScope.launch {
+            // Just create the entity in QUEUED status
+            repository.createDownloadEntity(name, url)
         }
     }
 

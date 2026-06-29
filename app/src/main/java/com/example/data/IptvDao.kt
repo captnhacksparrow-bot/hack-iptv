@@ -43,6 +43,9 @@ interface IptvDao {
     @Query("SELECT * FROM channels WHERE isFavorite = 1 ORDER BY name ASC")
     fun getFavoriteChannels(): Flow<List<ChannelEntity>>
 
+    @Query("SELECT * FROM channels WHERE playlistId = :playlistId AND isFavorite = 1")
+    suspend fun getFavoriteChannelsStatic(playlistId: Int): List<ChannelEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertChannels(channels: List<ChannelEntity>)
 

@@ -156,8 +156,10 @@ class IptvRepository(
                 android.util.Log.d("IptvRepository", "Parsed ${channels.size} channels")
                 if (channels.isNotEmpty()) {
                     // Clean up old channels of this playlist and insert new ones
+                    val oldFavorites = iptvDao.getFavoriteChannelsStatic(playlistId.toInt()).map { it.streamUrl }.toSet()
+                    val updatedChannels = channels.map { if (it.streamUrl in oldFavorites) it.copy(isFavorite = true) else it }
                     iptvDao.deleteChannelsByPlaylist(playlistId.toInt())
-                    iptvDao.insertChannels(channels)
+                    iptvDao.insertChannels(updatedChannels)
                     true
                 } else {
                     // Clean up playlist if no channels were parsed
@@ -222,8 +224,10 @@ class IptvRepository(
 
                 val channels = M3uParser.parse(bodyString, playlistId)
                 if (channels.isNotEmpty()) {
+                    val oldFavorites = iptvDao.getFavoriteChannelsStatic(playlistId).map { it.streamUrl }.toSet()
+                    val updatedChannels = channels.map { if (it.streamUrl in oldFavorites) it.copy(isFavorite = true) else it }
                     iptvDao.deleteChannelsByPlaylist(playlistId)
-                    iptvDao.insertChannels(channels)
+                    iptvDao.insertChannels(updatedChannels)
                     iptvDao.updatePlaylist(playlist.copy(lastUpdated = System.currentTimeMillis()))
                     true
                 } else {
@@ -460,8 +464,10 @@ class IptvRepository(
 
             try {
                 if (channels.isNotEmpty()) {
+                    val oldFavorites = iptvDao.getFavoriteChannelsStatic(playlistId).map { it.streamUrl }.toSet()
+                    val updatedChannels = channels.map { if (it.streamUrl in oldFavorites) it.copy(isFavorite = true) else it }
                     iptvDao.deleteChannelsByPlaylist(playlistId)
-                    iptvDao.insertChannels(channels)
+                    iptvDao.insertChannels(updatedChannels)
                     true
                 } else {
                     false
@@ -489,6 +495,10 @@ class IptvRepository(
                 null
             }
         }
+    }
+
+    suspend fun fetchJsonObjectPublic(url: String): JSONObject? {
+        return fetchJsonObject(url)
     }
 
     private suspend fun fetchJsonObject(url: String): JSONObject? {
