@@ -11,6 +11,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import com.example.data.AppDatabase
 import com.example.data.IptvRepository
@@ -33,7 +34,8 @@ class MainActivity : ComponentActivity() {
 
         enableEdgeToEdge()
         setContent {
-            MyApplicationTheme {
+            val appTheme by viewModel.appTheme.collectAsState()
+            MyApplicationTheme(theme = appTheme) {
                 var showSplash by remember { androidx.compose.runtime.mutableStateOf(true) }
 
                 if (showSplash) {
@@ -41,12 +43,10 @@ class MainActivity : ComponentActivity() {
                         onSplashFinished = { showSplash = false }
                     )
                 } else {
-                    Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                        IptvDashboard(
-                            viewModel = viewModel,
-                            modifier = Modifier.padding(innerPadding)
-                        )
-                    }
+                    IptvDashboard(
+                        viewModel = viewModel,
+                        modifier = Modifier.fillMaxSize()
+                    )
                 }
             }
         }

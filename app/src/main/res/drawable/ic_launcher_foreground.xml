@@ -4,102 +4,188 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Group to center and scale correctly inside the safe zone -->
-    <group android:name="pirate_logo"
+    <!-- Primary Group with slight custom scaling and centering to maximize space while respecting the 66dp safe zone (inside 108dp) -->
+    <group android:name="pirate_logo_group"
         android:translateX="0"
-        android:translateY="0">
+        android:translateY="-1">
 
-        <!-- Outer Gold Glow/Outline Circle for icon look -->
+        <!-- 1. Outer Sticker Shadow/Glow (Adds high contrast esports look against dark background) -->
         <path
-            android:fillColor="#FFB03A"
-            android:pathData="M54,22 A32,32 0 1,0 54,86 A32,32 0 1,0 54,22 Z"
-            android:fillAlpha="0.1" />
+            android:fillColor="#000000"
+            android:pathData="M18,48 C18,30 32,22 54,22 C76,22 90,30 90,48 C90,56 86,64 80,72 L76,78 C70,82 62,84 54,84 C46,84 38,82 32,78 L28,72 C22,64 18,56 18,48 Z"
+            android:fillAlpha="0.75" />
 
-        <!-- 1. Pirate Hat (Bicorn) with Gold Border -->
-        <!-- Hat Background Shadow -->
+        <!-- 2. Main Pirate Bicorn Hat with Golden-Yellow Highlight Outlines -->
+        <!-- Hat Background Fill -->
         <path
-            android:fillColor="#0D0E11"
-            android:pathData="M24,48 C24,40 34,32 54,32 C74,32 84,40 84,48 C76,46 68,44 54,44 C40,44 32,46 24,48 Z" />
+            android:fillColor="#0D0F12"
+            android:pathData="M20,46 C22,34 34,26 54,26 C74,26 86,34 88,46 C80,43 70,41 54,41 C38,41 28,43 20,46 Z" />
+        
+        <!-- Hat Inner Soft Highlight (Volumetric 3D touch) -->
+        <path
+            android:fillColor="#1C212A"
+            android:pathData="M24,44 C26,36 36,29 54,29 C72,29 82,36 84,44 C78,42 66,40.5 54,40.5 C42,40.5 30,42 24,44 Z" />
 
-        <!-- Hat Main Shape (Black) -->
+        <!-- Thick Golden/Yellow Hat Border Trim -->
         <path
-            android:fillColor="#1E232B"
-            android:pathData="M26,46 C28,34 38,30 54,30 C70,30 80,34 82,46 C74,43 66,41 54,41 C42,41 34,43 26,46 Z" />
-
-        <!-- Hat Gold Trim (Top Curve) -->
-        <path
-            android:strokeColor="#FFB03A"
-            android:strokeWidth="1.5"
-            android:fillColor="#00000000"
-            android:pathData="M26,46 C28,34 38,30 54,30 C70,30 80,34 82,46" />
-
-        <!-- Tiny Skull Emblem on Hat -->
-        <path
-            android:fillColor="#FFFFFF"
-            android:pathData="M54,33 A2.5,2.5 0 1,0 54,38 A2.5,2.5 0 1,0 54,33 Z" />
-        <path
-            android:fillColor="#FFFFFF"
-            android:pathData="M52.5,37.5 h3 v1.5 h-3 Z" />
-        <!-- Crossbones for emblem -->
-        <path
-            android:strokeColor="#FFFFFF"
-            android:strokeWidth="0.6"
-            android:pathData="M51,34 L57,39 M57,34 L51,39" />
-
-        <!-- 2. Blue Bandanna -->
-        <path
-            android:fillColor="#3A86FF"
-            android:pathData="M34,45 C38,44 46,43 54,43 C62,43 70,44 74,45 C73,48 70,50 68,50 C58,49 50,49 40,50 C38,50 35,48 34,45 Z" />
-        <!-- Bandanna Knot/Tails -->
-        <path
-            android:fillColor="#3A86FF"
-            android:pathData="M73,46 C75,46 78,48 77,52 C76,55 72,54 71,51 C70,49 71,47 73,46 Z" />
-        <path
-            android:fillColor="#2563EB"
-            android:pathData="M72,48 C74,49 75,52 74,54 C73,56 70,54 70,51 Z" />
-
-        <!-- 3. Skull Face -->
-        <!-- Main white skull base -->
-        <path
-            android:fillColor="#FFFFFF"
-            android:pathData="M37,49 C37,45 42,45 54,45 C66,45 71,45 71,49 C71,58 66,63 54,63 C42,63 37,58 37,49 Z" />
-
-        <!-- Skull Jaw/Teeth area -->
-        <path
-            android:fillColor="#FFFFFF"
-            android:pathData="M46,62 C46,66 48,68 54,68 C60,68 62,66 62,62 Z" />
-
-        <!-- Eye Sockets (Dark Navy/Black) -->
-        <path
-            android:fillColor="#1E232B"
-            android:pathData="M43,51 A3.5,4 0 1,0 43,59 A3.5,4 0 1,0 43,51 Z" />
-        <path
-            android:fillColor="#1E232B"
-            android:pathData="M65,51 A3.5,4 0 1,0 65,59 A3.5,4 0 1,0 65,51 Z" />
-
-        <!-- Nose Cavity -->
-        <path
-            android:fillColor="#1E232B"
-            android:pathData="M54,58 L52,61 L56,61 Z" />
-
-        <!-- Teeth lines -->
-        <path
-            android:strokeColor="#1E232B"
-            android:strokeWidth="1"
-            android:pathData="M50,62 L50,66 M54,62 L54,66 M58,62 L58,66" />
-
-        <!-- 4. Play button watermark overlay at bottom-left of skull for streaming context -->
-        <path
-            android:fillColor="#FFB03A"
-            android:pathData="M31,63 L39,59 L31,55 Z" />
-
-        <!-- Streaming radio waves -->
-        <path
-            android:strokeColor="#FFB03A"
-            android:strokeWidth="1.2"
+            android:strokeColor="#FFC837"
+            android:strokeWidth="1.8"
             android:strokeLineCap="round"
             android:fillColor="#00000000"
-            android:pathData="M41,53 C44,55 44,59 41,61 M44,50 C49,53 49,59 44,62" />
+            android:pathData="M20,46 C22,34 34,26 54,26 C74,26 86,34 88,46" />
+
+        <!-- Mini Emblem (Pirate Skull Symbol on Hat center) -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M54,29 A2.2,2.2 0 1,0 54,33.4 A2.2,2.2 0 1,0 54,29 Z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M52.5,33 h3 v1.2 h-3 Z" />
+        <!-- Miniature Crossbones under the hat emblem -->
+        <path
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="0.5"
+            android:pathData="M51.5,30.5 L56.5,34 M56.5,30.5 L51.5,34" />
+
+        <!-- 3. Cobalt Blue Bandana (Forehead wrap with side knots) -->
+        <path
+            android:fillColor="#3A86FF"
+            android:pathData="M30,44 C36,42.5 45,42 54,42 C63,42 72,42.5 78,44 C77,47 73,49 68,49 C58,48 50,48 40,49 C35,49 31,47 30,44 Z" />
+        
+        <!-- Bandana Folds Highlight -->
+        <path
+            android:fillColor="#60A5FA"
+            android:pathData="M32,44.5 C38,43.5 46,43 54,43 C62,43 70,43.5 76,44.5 C74,46 70,47.5 68,47.5 C58,46.5 50,46.5 40,47.5 C36,47.5 33,46 32,44.5 Z" />
+
+        <!-- Bandana Knot / Ties on the right side -->
+        <path
+            android:fillColor="#3A86FF"
+            android:pathData="M76,45 C78.5,45 81,47.5 80,51 C79,54 75,53 73,50 C72,48 73.5,46 76,45 Z" />
+        <path
+            android:fillColor="#1D4ED8"
+            android:pathData="M75,47 C77,48 78,51 77,53 C76,55 73,53 73,50 Z" />
+
+        <!-- 4. Main White Pirate Skull -->
+        <!-- Skull Outer Golden Outline for contrast sticker effect -->
+        <path
+            android:strokeColor="#FFC837"
+            android:strokeWidth="1.2"
+            android:fillColor="#00000000"
+            android:pathData="M32,47 C32,43 38,42.5 54,42.5 C70,42.5 76,43 76,47 C76,56.5 70,61.5 54,61.5 C38,61.5 32,56.5 32,47 Z" />
+
+        <!-- White Skull Solid Base -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M32.5,47 C32.5,43.5 38,43 54,43 C70,43 75.5,43.5 75.5,47 C75.5,56 70,61 54,61 C38,61 32.5,56 32.5,47 Z" />
+
+        <!-- Skull Jaw/Teeth area base -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M44,60 C44,64 46,67 54,67 C62,67 64,64 64,60 Z" />
+
+        <!-- Eye Sockets (Deep Navy Black, matching the brand colors) -->
+        <path
+            android:fillColor="#14171E"
+            android:pathData="M40.5,50 C40.5,47 45.5,47 45.5,50 C45.5,55 40.5,55 40.5,50 Z" />
+        <path
+            android:fillColor="#14171E"
+            android:pathData="M62.5,50 C62.5,47 67.5,47 67.5,50 C67.5,55 62.5,55 62.5,50 Z" />
+            
+        <!-- Eye Sockets Cute Highlights -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M44,49 A1,1 0 1,0 44,51 A1,1 0 1,0 44,49 Z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M66,49 A1,1 0 1,0 66,51 A1,1 0 1,0 66,49 Z" />
+
+        <!-- Nose Cavity (inverted heart shape) -->
+        <path
+            android:fillColor="#14171E"
+            android:pathData="M54,54.5 L51.5,58 L56.5,58 Z" />
+
+        <!-- Teeth Division Lines -->
+        <path
+            android:strokeColor="#14171E"
+            android:strokeWidth="1.2"
+            android:strokeLineCap="round"
+            android:pathData="M48,61 L48,65 M54,61 L54,65 M60,61 L60,65" />
+
+        <!-- 5. Esports Bold Styled Lettering Plate & Text Paths -->
+        <!-- Banner Base Plate with gold trim -->
+        <path
+            android:fillColor="#0D0F12"
+            android:strokeColor="#FFC837"
+            android:strokeWidth="1.5"
+            android:pathData="M 18,68 L 90,68 C 92,75 88,82 82,86 L 26,86 C 20,82 16,75 18,68 Z" />
+
+        <!-- Text Label "CAPTN HACK" Path (Thick, Stylized golden letters) -->
+        <group
+            android:strokeColor="#FFC837"
+            android:strokeWidth="2.0"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:fillColor="#00000000">
+
+            <!-- C -->
+            <path android:pathData="M 27,74 C 26,74 24.5,73 24.5,71.5 C 24.5,70 26,69 27,69" />
+            
+            <!-- A -->
+            <path android:pathData="M 29.5,74 L 31.5,69 L 33.5,74 M 29.5,72.2 L 33.5,72.2" />
+            
+            <!-- P -->
+            <path android:pathData="M 36,74 L 36,69 C 38.5,69 38.5,71.5 36,71.5" />
+            
+            <!-- T -->
+            <path android:pathData="M 40,69 L 44,69 M 42,69 L 42,74" />
+            
+            <!-- N -->
+            <path android:pathData="M 46.5,74 L 46.5,69 L 50,74 L 50,69" />
+
+            <!-- H -->
+            <path android:pathData="M 54.5,69 L 54.5,74 M 58.5,69 L 58.5,74 M 54.5,71.5 L 58.5,71.5" />
+            
+            <!-- A -->
+            <path android:pathData="M 61,74 L 63,69 L 65,74 M 61,72.2 L 65,72.2" />
+            
+            <!-- C -->
+            <path android:pathData="M 70,74 C 69,74 67.5,73 67.5,71.5 C 67.5,70 69,69 70,69" />
+            
+            <!-- K -->
+            <path android:pathData="M 73,69 L 73,74 M 73,71.5 L 76.5,69 M 73,71.5 L 76.5,74" />
+
+        </group>
+
+        <!-- Subtext Label "STREAMS" centered at the bottom -->
+        <group
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="1.5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:fillColor="#00000000">
+
+            <!-- S -->
+            <path android:pathData="M 41.5,79 C 39.5,79 38.5,80 40,81 C 41.5,82 38.5,82 40,83.5" />
+            
+            <!-- T -->
+            <path android:pathData="M 43,79.5 L 47,79.5 M 45,79.5 L 45,84" />
+            
+            <!-- R -->
+            <path android:pathData="M 49.5,84 L 49.5,79.5 M 49.5,79.5 C 51.5,79.5 51.5,81.5 49.5,81.5 L 51.5,84" />
+            
+            <!-- E -->
+            <path android:pathData="M 56.5,79.5 L 54,79.5 L 54,84 L 56.5,84 M 54,81.8 L 56,81.8" />
+            
+            <!-- A -->
+            <path android:pathData="M 59,84 L 61,79.5 L 63,84 M 59,82.2 L 63,82.2" />
+            
+            <!-- M -->
+            <path android:pathData="M 65,84 L 65,79.5 L 67.5,82 L 70,79.5 L 70,84" />
+            
+            <!-- S -->
+            <path android:pathData="M 74.5,79 C 72.5,79 71.5,80 73,81 C 74.5,82 71.5,82 73,83.5" />
+
+        </group>
 
     </group>
 </vector>

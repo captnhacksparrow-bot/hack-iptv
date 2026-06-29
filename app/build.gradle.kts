@@ -17,8 +17,8 @@ android {
     applicationId = "com.aistudio.captnhackstreams.iptv"
     minSdk = 24
     targetSdk = 36
-    versionCode = 1
-    versionName = "1.0"
+    versionCode = 8
+    versionName = "8.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -44,7 +44,7 @@ android {
       isCrunchPngs = false
       isMinifyEnabled = false
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      signingConfig = signingConfigs.getByName("release")
+      // signingConfig = signingConfigs.getByName("release")
     }
     debug {
       signingConfig = signingConfigs.getByName("debugConfig")
@@ -130,4 +130,42 @@ dependencies {
   debugImplementation(libs.androidx.compose.ui.tooling)
   "ksp"(libs.androidx.room.compiler)
   "ksp"(libs.moshi.kotlin.codegen)
+}
+
+tasks.register<Copy>("copyToVisibleFolder") {
+    from(layout.buildDirectory.dir("outputs/apk/debug")) {
+        include("app-debug.apk")
+    }
+    from(layout.buildDirectory.dir("outputs/bundle/debug")) {
+        include("app-debug.aab")
+    }
+    from(layout.buildDirectory.dir("outputs/apk/release")) {
+        include("app-release.apk")
+    }
+    from(layout.buildDirectory.dir("outputs/bundle/release")) {
+        include("app-release.aab")
+    }
+    into(rootProject.layout.projectDirectory.dir("App_Build_Files"))
+}
+
+tasks.register<Copy>("copyToBuildOutputs") {
+    from(layout.buildDirectory.dir("outputs/apk/debug")) {
+        include("app-debug.apk")
+    }
+    from(layout.buildDirectory.dir("outputs/bundle/debug")) {
+        include("app-debug.aab")
+    }
+    from(layout.buildDirectory.dir("outputs/apk/release")) {
+        include("app-release.apk")
+    }
+    from(layout.buildDirectory.dir("outputs/bundle/release")) {
+        include("app-release.aab")
+    }
+    into(rootProject.layout.projectDirectory.dir(".build-outputs"))
+}
+
+tasks.configureEach {
+    if (name == "assembleDebug" || name == "bundleDebug" || name == "assembleRelease" || name == "bundleRelease") {
+        finalizedBy("copyToVisibleFolder", "copyToBuildOutputs")
+    }
 }

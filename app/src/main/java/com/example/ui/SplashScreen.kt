@@ -25,6 +25,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun SplashScreen(
@@ -35,38 +36,14 @@ fun SplashScreen(
     // Animations setup
     val transitionState = rememberInfiniteTransition(label = "SplashRotation")
     
-    // Rotate helm animation
-    val rotationAngle by transitionState.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(4000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "HelmRotation"
-    )
+    // Rotate helm (static offset to prevent CPU lag on lightweight emulators)
+    val rotationAngle = 15f
 
-    // Pulse scale animation for skull/coin center
-    val coinScale by transitionState.animateFloat(
-        initialValue = 0.95f,
-        targetValue = 1.05f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "CoinPulse"
-    )
+    // Pulse scale (static scale to prevent CPU lag on lightweight emulators)
+    val coinScale = 1.0f
 
-    // Sweep position for golden shine effect
-    val shineSweep by transitionState.animateFloat(
-        initialValue = -150f,
-        targetValue = 600f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "GoldShine"
-    )
+    // Sweep position for golden shine effect (static to prevent CPU lag on lightweight emulators)
+    val shineSweep = 150f
 
     // App title scale & fade-in animation
     val appTitleAlpha = remember { Animatable(0f) }
@@ -83,20 +60,24 @@ fun SplashScreen(
     val exitAlpha by animateFloatAsState(
         targetValue = if (startExitAnimation) 0f else 1f,
         animationSpec = tween(600, easing = FastOutSlowInEasing),
-        label = "ExitFade",
-        finishedListener = {
-            onSplashFinished()
-        }
+        label = "ExitFade"
     )
 
     LaunchedEffect(Unit) {
-        // Sequenced visual entrance
-        appTitleAlpha.animateTo(1f, animationSpec = tween(1200, easing = OvershootEasing))
-        appTitleScale.animateTo(1f, animationSpec = tween(1000, easing = OvershootEasing))
+        // Run entrance animations in parallel
+        launch {
+            appTitleAlpha.animateTo(1f, animationSpec = tween(1200, easing = OvershootEasing))
+        }
+        launch {
+            appTitleScale.animateTo(1f, animationSpec = tween(1000, easing = OvershootEasing))
+        }
         
-        // Wait for splash duration
-        delay(2200)
+        // Wait for splash duration (2000ms total)
+        delay(2000)
         startExitAnimation = true
+        // Wait for the exit fade animation to finish (600ms) before invoking callback
+        delay(600)
+        onSplashFinished()
     }
 
     Box(

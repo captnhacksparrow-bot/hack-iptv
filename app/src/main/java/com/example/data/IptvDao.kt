@@ -9,6 +9,9 @@ interface IptvDao {
     @Query("SELECT * FROM playlists ORDER BY lastUpdated DESC")
     fun getAllPlaylists(): Flow<List<PlaylistEntity>>
 
+    @Query("SELECT * FROM playlists ORDER BY lastUpdated DESC")
+    suspend fun getStaticAllPlaylists(): List<PlaylistEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPlaylist(playlist: PlaylistEntity): Long
 
@@ -65,6 +68,9 @@ interface IptvDao {
     // Downloads
     @Query("SELECT * FROM downloads ORDER BY downloadTime DESC")
     fun getAllDownloads(): Flow<List<DownloadEntity>>
+
+    @Query("SELECT * FROM downloads WHERE id = :id")
+    suspend fun getDownloadById(id: Int): DownloadEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertDownload(download: DownloadEntity): Long

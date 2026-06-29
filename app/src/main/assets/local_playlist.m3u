@@ -1,0 +1,36 @@
+#EXTM3U
+#EXTINF:-1 tvg-logo="https://upload.wikimedia.org/wikipedia/commons/5/50/Sky_News_2024_logo.svg" group-title="Live TV",Sky News Live
+https://skynews-live-md-hls.akamaized.net/hls/live/2034078/skynewshls-v7/master.m3u8
+
+#EXTINF:-1 tvg-logo="https://upload.wikimedia.org/wikipedia/commons/e/e5/NASA_logo.svg" group-title="Live TV",NASA TV Public
+https://ntv1.akamaized.net/hls/live/2013891/NASA-NTV1-HLS/master.m3u8
+
+#EXTINF:-1 tvg-logo="https://upload.wikimedia.org/wikipedia/commons/e/e5/NASA_logo.svg" group-title="Live TV",NASA TV Media Channel
+https://ntv2.akamaized.net/hls/live/2013919/NASA-NTV2-HLS/master.m3u8
+
+#EXTINF:-1 tvg-logo="https://upload.wikimedia.org/wikipedia/commons/5/5b/Deutsche_Welle_logo.svg" group-title="Live TV",DW English News
+https://dwstream4-lh.akamaihd.net/i/dwstream4_live@131329/master.m3u8
+
+#EXTINF:-1 tvg-logo="https://upload.wikimedia.org/wikipedia/commons/7/7e/CGTN_Logo.svg" group-title="Live TV",CGTN Live
+https://cgtneng.migucloud.com/miguplay/gclive/cgtn/index.m3u8
+
+#EXTINF:-1 tvg-logo="https://upload.wikimedia.org/wikipedia/commons/c/c5/Big_Buck_Bunny_Main_Poster.jpg" group-title="Movies",Big Buck Bunny (Classic Animation)
+https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4
+
+#EXTINF:-1 tvg-logo="https://upload.wikimedia.org/wikipedia/commons/e/ee/Sintel_poster.jpg" group-title="Movies",Sintel (Fantasy Story)
+https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4
+
+#EXTINF:-1 tvg-logo="https://upload.wikimedia.org/wikipedia/commons/6/6f/Tears_of_Steel_poster.jpg" group-title="Movies",Tears of Steel (Sci-Fi)
+https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4
+
+#EXTINF:-1 tvg-logo="https://upload.wikimedia.org/wikipedia/commons/d/db/NASA_WFIRST_Cosmos_illustration.jpg" group-title="TV Shows",Cosmos Odyssey (S01E01)
+https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WeAreGoingOnBullrun.mp4
+
+#EXTINF:-1 tvg-logo="https://upload.wikimedia.org/wikipedia/commons/1/12/Technology_Portal_Icon_or_Logo.svg" group-title="TV Shows",The Tech Pulse Show (S01E01)
+https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4
+
+#EXTINF:-1 tvg-logo="https://upload.wikimedia.org/wikipedia/commons/4/4b/Racing_flag_icon.svg" group-title="PPV / Events",Grand Prix Ultimate Race Clash
+https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4
+
+#EXTINF:-1 tvg-logo="https://upload.wikimedia.org/wikipedia/commons/7/7c/Climbing_icon.svg" group-title="PPV / Events",Extreme Heights Climbing Finals
+https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4

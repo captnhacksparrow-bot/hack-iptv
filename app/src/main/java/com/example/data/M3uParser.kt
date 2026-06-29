@@ -18,7 +18,15 @@ object M3uParser {
 
     fun parse(m3uContent: String, playlistId: Int): List<ChannelEntity> {
         val channels = mutableListOf<ChannelEntity>()
-        val reader = BufferedReader(StringReader(m3uContent))
+        
+        // Remove UTF-8 Byte Order Mark (BOM) if present
+        val cleanContent = if (m3uContent.startsWith("\uFEFF")) {
+            m3uContent.substring(1)
+        } else {
+            m3uContent
+        }
+
+        val reader = BufferedReader(StringReader(cleanContent))
         var line: String? = reader.readLine()
 
         var currentExtInf: TempExtInf? = null
@@ -27,6 +35,11 @@ object M3uParser {
             val trimmed = line.trim()
             if (trimmed.startsWith("#EXTINF:")) {
                 currentExtInf = parseExtInfLine(trimmed)
+            } else if (trimmed.startsWith("#EXTGRP:")) {
+                val group = trimmed.substringAfter("#EXTGRP:").trim()
+                if (currentExtInf != null && group.isNotEmpty()) {
+                    currentExtInf = currentExtInf.copy(groupTitle = group)
+                }
             } else if (trimmed.isNotEmpty() && !trimmed.startsWith("#")) {
                 // This line is the stream URL
                 if (currentExtInf != null) {
@@ -45,12 +58,12 @@ object M3uParser {
                         )
                     )
                 } else {
-                    // Fallback if no #EXTINF was preceding
-                    val name = trimmed.substringAfterLast("/").substringBefore("?")
+                    // Fallback if no #EXTINF preceded the URL
+                    val nameFromUrl = trimmed.substringAfterLast("/").substringBefore("?")
                     channels.add(
                         ChannelEntity(
                             playlistId = playlistId,
-                            name = if (name.isNotEmpty()) name else "Stream ${channels.size + 1}",
+                            name = if (nameFromUrl.isNotEmpty()) nameFromUrl else "Stream ${channels.size + 1}",
                             logoUrl = null,
                             groupTitle = "Uncategorized",
                             streamUrl = trimmed,
@@ -70,23 +83,24 @@ object M3uParser {
     }
 
     private fun parseExtInfLine(line: String): TempExtInf {
-        // Strip out duration to parse attributes
         // Format is: #EXTINF:-1 tvg-id="..." tvg-logo="...",Channel Name
         val commaIndex = line.lastIndexOf(",")
         val attributesPart = if (commaIndex != -1) line.substring(0, commaIndex) else line
         val namePart = if (commaIndex != -1) line.substring(commaIndex + 1).trim() else "Unknown Channel"
 
-        val tvgId = extractAttribute(attributesPart, "tvg-id")
-        val tvgLogo = extractAttribute(attributesPart, "tvg-logo")
-        var groupTitle = extractAttribute(attributesPart, "group-title")
-        if (groupTitle.isNullOrEmpty()) {
-            groupTitle = extractAttribute(attributesPart, "group") ?: "Other"
-        }
-        val tvgName = extractAttribute(attributesPart, "tvg-name")
+        val attributes = extractAttributes(attributesPart)
 
-        val catchup = extractAttribute(attributesPart, "catchup")
-        val catchupDaysStr = extractAttribute(attributesPart, "catchup-days")
-        val catchupSource = extractAttribute(attributesPart, "catchup-source")
+        val tvgId = attributes["tvg-id"]
+        val tvgLogo = attributes["tvg-logo"] ?: attributes["logo"] ?: attributes["tvg-logo-url"] ?: attributes["icon"]
+        var groupTitle = attributes["group-title"] ?: attributes["group"] ?: attributes["tvg-group"]
+        if (groupTitle.isNullOrEmpty()) {
+            groupTitle = "Other"
+        }
+        val tvgName = attributes["tvg-name"]
+
+        val catchup = attributes["catchup"]
+        val catchupDaysStr = attributes["catchup-days"]
+        val catchupSource = attributes["catchup-source"]
 
         val catchupDays = catchupDaysStr?.toIntOrNull() ?: 0
 
@@ -102,28 +116,19 @@ object M3uParser {
         )
     }
 
-    private fun extractAttribute(source: String, attributeName: String): String? {
-        val keys = listOf("$attributeName=\"", "$attributeName=")
-        for (key in keys) {
-            val index = source.indexOf(key)
-            if (index != -1) {
-                val start = index + key.length
-                if (key.endsWith("\"")) {
-                    val end = source.indexOf("\"", start)
-                    if (end != -1) {
-                        return source.substring(start, end)
-                    }
-                } else {
-                    // Unquoted value, find next space or end
-                    val end = source.indexOf(" ", start)
-                    return if (end != -1) {
-                        source.substring(start, end).trim()
-                    } else {
-                        source.substring(start).trim()
-                    }
-                }
-            }
+    private fun extractAttributes(source: String): Map<String, String> {
+        val map = mutableMapOf<String, String>()
+        // Highly robust Regex to extract key=value pairs (double-quoted, single-quoted, or unquoted)
+        val regex = Regex("""([\w-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s,]+))""")
+        val matches = regex.findAll(source)
+        for (match in matches) {
+            val key = match.groups[1]?.value?.lowercase() ?: continue
+            val value = match.groups[2]?.value 
+                ?: match.groups[3]?.value 
+                ?: match.groups[4]?.value 
+                ?: ""
+            map[key] = value
         }
-        return null
+        return map
     }
 }

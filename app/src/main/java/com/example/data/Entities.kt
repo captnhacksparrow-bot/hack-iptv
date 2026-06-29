@@ -92,3 +92,14 @@ fun ChannelEntity.getStreamType(): StreamType {
     }
 }
 
+data class DownloadProgressState(
+    val id: Int,
+    val status: String,
+    val progress: Float,
+    val downloadedBytes: Long,
+    val totalBytes: Long,
+    val speedBps: Long,
+    val etaSeconds: Long
+)
+
+

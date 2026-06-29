@@ -40,36 +40,8 @@ fun VideoPlayer(
     var exoPlayer by remember { mutableStateOf<ExoPlayer?>(null) }
     var resizeMode by remember { mutableStateOf(AspectRatioFrameLayout.RESIZE_MODE_FIT) }
 
-    // Ad State
-    var isAdPlaying by remember { mutableStateOf(false) }
-    var adCountdown by remember { mutableStateOf(5) }
-
-    val adTitle = "The Caduceus Method (Cut the OM Nonsense)"
-    val adSubtitle = "Stray Divinity - Premium Wellness Activation"
-
-    // When videoUrl changes, reset ad playing state if it is a live stream
+    // Re-initialize player or change source when videoUrl changes
     LaunchedEffect(videoUrl) {
-        if (isLiveStream) {
-            isAdPlaying = true
-            adCountdown = 5
-        } else {
-            isAdPlaying = false
-        }
-    }
-
-    // Countdown Timer for Ad skip button
-    LaunchedEffect(isAdPlaying, videoUrl) {
-        if (isAdPlaying) {
-            adCountdown = 5
-            while (adCountdown > 0) {
-                delay(1000)
-                adCountdown--
-            }
-        }
-    }
-
-    // Re-initialize player or change source when videoUrl or isAdPlaying changes
-    LaunchedEffect(videoUrl, isAdPlaying) {
         if (exoPlayer == null) {
             val player = ExoPlayer.Builder(context).build().apply {
                 playWhenReady = true
@@ -81,35 +53,10 @@ fun VideoPlayer(
         exoPlayer?.let { player ->
             player.stop()
             player.clearMediaItems()
-            
-            val currentUri = if (isAdPlaying) {
-                "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4"
-            } else {
-                videoUrl
-            }
-            
-            val mediaItem = MediaItem.fromUri(currentUri)
+            val mediaItem = MediaItem.fromUri(videoUrl)
             player.setMediaItem(mediaItem)
             player.prepare()
             player.play()
-        }
-    }
-
-    // Listener to automatically end the ad when playback finishes
-    val currentIsAdPlaying by rememberUpdatedState(isAdPlaying)
-    DisposableEffect(exoPlayer) {
-        val listener = object : Player.Listener {
-            override fun onPlaybackStateChanged(playbackState: Int) {
-                if (playbackState == Player.STATE_ENDED) {
-                    if (currentIsAdPlaying) {
-                        isAdPlaying = false
-                    }
-                }
-            }
-        }
-        exoPlayer?.addListener(listener)
-        onDispose {
-            exoPlayer?.removeListener(listener)
         }
     }
 
@@ -123,8 +70,6 @@ fun VideoPlayer(
 
     Box(
         modifier = modifier
-            .fillMaxWidth()
-            .height(240.dp)
             .background(Color.Black)
     ) {
         if (exoPlayer != null) {
@@ -132,7 +77,7 @@ fun VideoPlayer(
                 factory = { ctx ->
                     PlayerView(ctx).apply {
                         player = exoPlayer
-                        useController = !isAdPlaying
+                        useController = true
                         this.resizeMode = resizeMode
                         layoutParams = ViewGroup.LayoutParams(
                             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -142,161 +87,78 @@ fun VideoPlayer(
                 },
                 update = { view ->
                     view.resizeMode = resizeMode
-                    view.useController = !isAdPlaying
+                    view.useController = true
                 },
                 modifier = Modifier.fillMaxSize()
             )
         }
 
-        // Custom Overlay for styling/actions
-        if (isAdPlaying) {
-            // High-end Ad overlay
-            Box(
+        // Normal details overlay
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(8.dp)
+        ) {
+            // Text details on top-left
+            Column(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.3f))
-                    .padding(12.dp)
+                    .align(Alignment.TopStart)
+                    .background(Color.Black.copy(alpha = 0.6f), shape = MaterialTheme.shapes.small)
+                    .padding(horizontal = 8.dp, vertical = 6.dp)
             ) {
-                // Ad Badge & Title top-left
-                Column(
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .background(Color.Black.copy(alpha = 0.75f), shape = MaterialTheme.shapes.small)
-                        .padding(horizontal = 10.dp, vertical = 8.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Surface(
-                            color = Color(0xFFFFB03A), // Gold brand color
-                            shape = MaterialTheme.shapes.extraSmall,
-                            modifier = Modifier.padding(vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = "AD",
-                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                color = Color(0xFF07090C),
-                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
-                            )
-                        }
-                        Text(
-                            text = adTitle,
-                            style = MaterialTheme.typography.titleMedium,
-                            color = Color.White
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White
+                )
+                if (subtitle != null) {
                     Text(
-                        text = adSubtitle,
+                        text = subtitle,
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.LightGray
                     )
                 }
-
-                // Skip Ad Button & Countdown bottom-right
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                ) {
-                    Button(
-                        onClick = { isAdPlaying = false },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (adCountdown <= 0) Color(0xFFFFB03A) else Color.DarkGray,
-                            contentColor = if (adCountdown <= 0) Color(0xFF07090C) else Color.LightGray
-                        ),
-                        shape = MaterialTheme.shapes.small,
-                        enabled = adCountdown <= 0,
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                        modifier = Modifier.testTag("skip_ad_button")
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Text(
-                                text = if (adCountdown > 0) "Skip Ad in ${adCountdown}s" else "Skip Ad",
-                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
-                            )
-                            if (adCountdown <= 0) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                    contentDescription = "Skip",
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                        }
-                    }
-                }
             }
-        } else {
-            // Normal details overlay
-            Box(
+
+            // Quick actions on top-right
+            Row(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(8.dp)
+                    .align(Alignment.TopEnd)
+                    .background(Color.Black.copy(alpha = 0.6f), shape = MaterialTheme.shapes.small)
+                    .padding(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Text details on top-left
-                Column(
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .background(Color.Black.copy(alpha = 0.6f), shape = MaterialTheme.shapes.small)
-                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                // Resize mode button
+                IconButton(
+                    onClick = {
+                        resizeMode = when (resizeMode) {
+                            AspectRatioFrameLayout.RESIZE_MODE_FIT -> AspectRatioFrameLayout.RESIZE_MODE_FILL
+                            AspectRatioFrameLayout.RESIZE_MODE_FILL -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                            else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+                        }
+                    },
+                    modifier = Modifier.size(36.dp)
                 ) {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = Color.White
+                    Icon(
+                        imageVector = Icons.Default.AspectRatio,
+                        contentDescription = "Aspect Ratio Mode",
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp)
                     )
-                    if (subtitle != null) {
-                        Text(
-                            text = subtitle,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color.LightGray
-                        )
-                    }
                 }
 
-                // Quick actions on top-right
-                Row(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .background(Color.Black.copy(alpha = 0.6f), shape = MaterialTheme.shapes.small)
-                        .padding(4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                // Download/Record button
+                IconButton(
+                    onClick = onDownloadClick,
+                    modifier = Modifier.size(36.dp)
                 ) {
-                    // Resize mode button
-                    IconButton(
-                        onClick = {
-                            resizeMode = when (resizeMode) {
-                                AspectRatioFrameLayout.RESIZE_MODE_FIT -> AspectRatioFrameLayout.RESIZE_MODE_FILL
-                                AspectRatioFrameLayout.RESIZE_MODE_FILL -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                                else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
-                            }
-                        },
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.AspectRatio,
-                            contentDescription = "Aspect Ratio Mode",
-                            tint = Color.White,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-
-                    // Download/Record button
-                    IconButton(
-                        onClick = onDownloadClick,
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Download,
-                            contentDescription = "Download Stream",
-                            tint = Color.White,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.Default.Download,
+                        contentDescription = "Download Stream",
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
             }
         }
