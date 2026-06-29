@@ -286,7 +286,7 @@ fun IptvDashboard(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .padding(24.dp)
+                    .padding(16.dp)
             ) {
                 TabContent(
                     deviceMode = deviceMode ?: "MOBILE",
@@ -1794,13 +1794,26 @@ fun PlaylistsTab(viewModel: IptvViewModel) {
         }
 
         Spacer(modifier = Modifier.height(16.dp))
-
-        Text(
-            text = "Active Playlists",
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 4.dp)
-        )
+        
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Active Playlists",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold
+            )
+            Button(
+                onClick = { viewModel.refreshAllPlaylists() },
+                modifier = Modifier.testTag("refresh_all_playlists_button")
+            ) {
+                Text("Refresh All")
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(8.dp))
 
         if (playlists.isEmpty()) {
             Box(

@@ -271,6 +271,16 @@ class IptvViewModel(
             }
         }
 
+        // Initial refresh check
+        viewModelScope.launch {
+            val lastRefresh = prefs.getLong("last_refresh_time", 0L)
+            val now = System.currentTimeMillis()
+            val twoDays = 2 * 24 * 60 * 60 * 1000L
+            if (lastRefresh == 0L || now - lastRefresh > twoDays) {
+                refreshAllPlaylists()
+            }
+        }
+
         // Periodic background refresh (every 1 hour) to keep the channel lists current
         viewModelScope.launch {
             while (true) {
@@ -329,6 +339,7 @@ class IptvViewModel(
                 for (playlist in currentPlaylists) {
                     repository.refreshPlaylist(playlist.id)
                 }
+                prefs.edit().putLong("last_refresh_time", System.currentTimeMillis()).apply()
             } catch (e: Exception) {
                 e.printStackTrace()
             } finally {

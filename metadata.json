@@ -1,5 +1,5 @@
 {
-  "name": "Capt'n Hack Streams",
+  "name": "v11",
   "description": "High-performance IPTV player supporting M3U playlists, Category navigation, EPG scheduling, Catch-up TV playback, and live stream downloads.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
