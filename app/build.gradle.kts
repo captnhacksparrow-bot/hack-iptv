@@ -17,8 +17,8 @@ android {
     applicationId = "com.aistudio.captnhackstreams.iptv"
     minSdk = 24
     targetSdk = 36
-    versionCode = 12
-    versionName = "12.0"
+    versionCode = 20
+    versionName = "20.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }

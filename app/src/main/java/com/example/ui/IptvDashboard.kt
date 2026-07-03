@@ -276,143 +276,150 @@ fun IptvDashboard(
     // In a real scenario, we might detect TV vs Mobile using UiModeManager.
     // For now, we proceed as if MOBILE is the default.
 
+    var isUiVisible by remember { mutableStateOf(true) }
+
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF0F1115))
+            .background(Color.Black)
     ) {
-        // Main content area - single layout
-        Column(modifier = Modifier.fillMaxSize()) {
-            
-            // 2. Main content area
-            Box(
+        val currentPlayUrl = activePlayUrl
+        val currentChannel = selectedChannel
+        
+        // 1. Background Video Player for Live TV
+        if (activeTab == 0 && currentPlayUrl != null && currentChannel != null) {
+            val context = LocalContext.current
+            VideoPlayer(
+                videoUrl = currentPlayUrl,
+                title = currentChannel.name,
+                subtitle = "Live TV",
+                onDownloadClick = { 
+                    viewModel.downloadActiveStream()
+                    android.widget.Toast.makeText(context, "Download started for ${currentChannel.name}", android.widget.Toast.LENGTH_SHORT).show()
+                },
+                isLiveStream = true,
                 modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-            ) {
-                Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-                    TabContent(
-                        deviceMode = deviceMode ?: "MOBILE",
-                        activeTab = activeTab,
-                        viewModel = viewModel,
-                        onNavigateToPlaylists = { activeTab = 6 }
-                    )
-                }
-                
-                // Show overlay only if in Live TV tab (tab 0)
-                if (activeTab == 0) {
-                    LiveTvOverlay(visible = isOverlayVisible)
-                }
+                    .fillMaxSize()
+                    .clickable { isUiVisible = !isUiVisible }
+            )
+        }
 
-                // Inline Video Player when not in fullscreen
-                val currentPlayUrl = activePlayUrl
-                val currentChannel = selectedChannel
-                if (currentPlayUrl != null && currentChannel != null && !isFullScreenMobile) {
+        // 2. Main content area
+        AnimatedVisibility(
+            visible = isUiVisible,
+            enter = fadeIn(),
+            exit = fadeOut()
+        ) {
+            Column(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                // Main content area
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                ) {
+                    val isLiveTvPlaying = activeTab == 0 && currentPlayUrl != null
                     Box(
                         modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(16.dp)
-                            .width(280.dp)
-                            .height(158.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color.Black)
-                            .border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp))
+                            .fillMaxHeight()
+                            .then(if (isLiveTvPlaying) Modifier.width(350.dp) else Modifier.fillMaxWidth())
+                            .background(Color(0xFF0F1115).copy(alpha = if (isLiveTvPlaying) 0.95f else 1f))
+                            .align(if (isLiveTvPlaying) Alignment.CenterStart else Alignment.Center)
                     ) {
-                        val context = LocalContext.current
-                        VideoPlayer(
-                            videoUrl = currentPlayUrl,
-                            title = currentChannel.name,
-                            subtitle = "Live TV",
-                            onDownloadClick = { 
-                                viewModel.downloadActiveStream()
-                                android.widget.Toast.makeText(context, "Download started for ${currentChannel.name}", android.widget.Toast.LENGTH_SHORT).show()
+                        Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+                            TabContent(
+                                deviceMode = deviceMode ?: "MOBILE",
+                                activeTab = activeTab,
+                                viewModel = viewModel,
+                                onNavigateToPlaylists = { activeTab = 6 }
+                            )
+                        }
+                    }
+                    
+                    // Show overlay only if in Live TV tab (tab 0)
+                    if (activeTab == 0) {
+                        LiveTvOverlay(visible = isOverlayVisible)
+                    }
+                }
+                
+                // 1. Bottom Navigation Bar
+                NavigationBar(
+                    containerColor = Color(0xFF131722).copy(alpha = if (activeTab == 0 && currentPlayUrl != null) 0.95f else 1f),
+                    contentColor = Color.White
+                ) {
+                    val deviceMode by viewModel.deviceMode.collectAsState()
+                    
+                    val navItems = mutableListOf(
+                        "Live TV" to Icons.Default.Tv,
+                        "PPV" to Icons.Default.Event,
+                        "Movies" to Icons.Default.Movie,
+                        "Shows" to Icons.Default.VideoLibrary,
+                        "EPG" to Icons.Default.LiveTv,
+                        "Recordings" to Icons.Default.CloudDownload,
+                        "Playlists" to Icons.Default.PlaylistPlay,
+                        "Profile" to Icons.Default.Person
+                    )
+                    
+                    if (deviceMode == "TV") {
+                        navItems.add("Pair" to Icons.Default.SettingsBluetooth)
+                    } else {
+                        navItems.add("Remote" to Icons.Default.SettingsRemote)
+                    }
+
+                    navItems.forEachIndexed { index, (label, icon) ->
+                        val isSelected = activeTab == index
+                        NavigationBarItem(
+                            selected = isSelected,
+                            onClick = { 
+                                activeTab = index 
+                                when (index) {
+                                    0 -> viewModel.selectStreamType(StreamType.LIVE_TV)
+                                    1 -> viewModel.selectStreamType(StreamType.PPV)
+                                    2 -> viewModel.selectStreamType(StreamType.MOVIE)
+                                    3 -> viewModel.selectStreamType(StreamType.TV_SHOW)
+                                    // Handle other tabs
+                                }
                             },
-                            isLiveStream = true,
-                            modifier = Modifier.fillMaxSize()
+                            label = { Text(label, style = MaterialTheme.typography.labelSmall) },
+                            icon = { Icon(icon, contentDescription = label) }
                         )
-                        
-                        // Controls Overlay
-                        Row(
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .padding(8.dp)
-                        ) {
-                            IconButton(
-                                onClick = { viewModel.clearSelectedChannel() },
-                                modifier = Modifier.background(Color.Black.copy(alpha = 0.5f), CircleShape).size(32.dp)
-                            ) {
-                                Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White, modifier = Modifier.size(16.dp))
-                            }
-                        }
-                        
-                        IconButton(
-                            onClick = { isFullScreenMobile = true },
-                            modifier = Modifier
-                                .align(Alignment.BottomEnd)
-                                .padding(8.dp)
-                                .background(Color.Black.copy(alpha = 0.5f), CircleShape).size(32.dp)
-                        ) {
-                            Icon(Icons.Default.Fullscreen, contentDescription = "Fullscreen", tint = Color.White, modifier = Modifier.size(16.dp))
-                        }
                     }
                 }
             }
-            
-            // 1. Bottom Navigation Bar
-            NavigationBar(
-                containerColor = Color(0xFF131722),
-                contentColor = Color.White
-            ) {
-                val deviceMode by viewModel.deviceMode.collectAsState()
-                
-                val navItems = mutableListOf(
-                    "Live TV" to Icons.Default.Tv,
-                    "PPV" to Icons.Default.Event,
-                    "Movies" to Icons.Default.Movie,
-                    "Shows" to Icons.Default.VideoLibrary,
-                    "EPG" to Icons.Default.LiveTv,
-                    "Recordings" to Icons.Default.CloudDownload,
-                    "Playlists" to Icons.Default.PlaylistPlay,
-                    "Profile" to Icons.Default.Person
-                )
-                
-                if (deviceMode == "TV") {
-                    navItems.add("Pair" to Icons.Default.SettingsBluetooth)
-                } else {
-                    navItems.add("Remote" to Icons.Default.SettingsRemote)
-                }
+        }
 
-                navItems.forEachIndexed { index, (label, icon) ->
-                    val isSelected = activeTab == index
-                    NavigationBarItem(
-                        selected = isSelected,
-                        onClick = { 
-                            activeTab = index 
-                            when (index) {
-                                0 -> viewModel.selectStreamType(StreamType.LIVE_TV)
-                                1 -> viewModel.selectStreamType(StreamType.PPV)
-                                2 -> viewModel.selectStreamType(StreamType.MOVIE)
-                                3 -> viewModel.selectStreamType(StreamType.TV_SHOW)
-                                // Handle other tabs
-                            }
-                        },
-                        label = { Text(label, style = MaterialTheme.typography.labelSmall) },
-                        icon = { Icon(icon, contentDescription = label) }
-                    )
-                }
+        // If UI is hidden in Live TV, show a menu button to bring it back and a close button
+        if (activeTab == 0 && currentPlayUrl != null && !isUiVisible) {
+            IconButton(
+                onClick = { isUiVisible = true },
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(16.dp)
+                    .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+            ) {
+                Icon(Icons.Default.Menu, contentDescription = "Menu", tint = Color.White)
+            }
+            
+            IconButton(
+                onClick = { viewModel.clearSelectedChannel(); isUiVisible = true },
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(16.dp)
+                    .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+            ) {
+                Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
             }
         }
         
-        // Full screen video player overlay
-        val currentPlayUrl = activePlayUrl
-        val currentChannel = selectedChannel
-        if (currentPlayUrl != null && currentChannel != null && isFullScreenMobile) {
+        // Full screen video player overlay for VOD/PPV (activeTab != 0)
+        if (currentPlayUrl != null && currentChannel != null && activeTab != 0) {
             FullScreenPlayerOverlay(
                 activePlayUrl = currentPlayUrl,
                 selectedChannel = currentChannel,
                 viewModel = viewModel,
                 onClose = { viewModel.clearSelectedChannel() },
-                onMenuClick = { isFullScreenMobile = false }
+                onMenuClick = { viewModel.clearSelectedChannel() } // map menu click to close since no inline mode
             )
         }
     }
