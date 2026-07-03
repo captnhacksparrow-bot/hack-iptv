@@ -12,7 +12,7 @@ import androidx.room.RoomDatabase
         EpgProgramEntity::class,
         DownloadEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

@@ -26,6 +26,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.ui.text.font.FontWeight
 import kotlinx.coroutines.delay
 
+import kotlinx.coroutines.flow.SharedFlow
+
 @OptIn(UnstableApi::class)
 @Composable
 fun VideoPlayer(
@@ -34,11 +36,65 @@ fun VideoPlayer(
     subtitle: String?,
     onDownloadClick: () -> Unit,
     modifier: Modifier = Modifier,
-    isLiveStream: Boolean = false
+    isLiveStream: Boolean = false,
+    remoteCommands: SharedFlow<String>? = null,
+    onPlaybackStarted: () -> Unit = {}
 ) {
     val context = LocalContext.current
     var exoPlayer by remember { mutableStateOf<ExoPlayer?>(null) }
     var resizeMode by remember { mutableStateOf(AspectRatioFrameLayout.RESIZE_MODE_FIT) }
+
+    val currentOnPlaybackStarted by rememberUpdatedState(onPlaybackStarted)
+
+    LaunchedEffect(exoPlayer, remoteCommands) {
+        if (exoPlayer != null && remoteCommands != null) {
+            remoteCommands.collect { cmd ->
+                when (cmd) {
+                    "PLAY_PAUSE" -> {
+                        exoPlayer?.let { player ->
+                            player.playWhenReady = !player.playWhenReady
+                        }
+                    }
+                    "VOLUME_UP" -> {
+                        exoPlayer?.let { player ->
+                            val currentVol = player.volume
+                            player.volume = (currentVol + 0.1f).coerceAtMost(1f)
+                        }
+                    }
+                    "VOLUME_DOWN" -> {
+                        exoPlayer?.let { player ->
+                            val currentVol = player.volume
+                            player.volume = (currentVol - 0.1f).coerceAtLeast(0f)
+                        }
+                    }
+                    "MUTE" -> {
+                        exoPlayer?.let { player ->
+                            player.volume = if (player.volume > 0f) 0f else 1f
+                        }
+                    }
+                    "FORWARD" -> {
+                        exoPlayer?.let { player ->
+                            val currentPosition = player.currentPosition
+                            player.seekTo((currentPosition + 10000).coerceAtMost(player.duration))
+                        }
+                    }
+                    "REWIND" -> {
+                        exoPlayer?.let { player ->
+                            val currentPosition = player.currentPosition
+                            player.seekTo((currentPosition - 10000).coerceAtLeast(0))
+                        }
+                    }
+                    "FULLSCREEN" -> {
+                        resizeMode = when (resizeMode) {
+                            AspectRatioFrameLayout.RESIZE_MODE_FIT -> AspectRatioFrameLayout.RESIZE_MODE_FILL
+                            AspectRatioFrameLayout.RESIZE_MODE_FILL -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                            else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     // Re-initialize player or change source when videoUrl changes
     LaunchedEffect(videoUrl) {
@@ -46,6 +102,13 @@ fun VideoPlayer(
             val player = ExoPlayer.Builder(context).build().apply {
                 playWhenReady = true
                 repeatMode = Player.REPEAT_MODE_OFF
+                addListener(object : Player.Listener {
+                    override fun onIsPlayingChanged(isPlaying: Boolean) {
+                        if (isPlaying) {
+                            currentOnPlaybackStarted()
+                        }
+                    }
+                })
             }
             exoPlayer = player
         }

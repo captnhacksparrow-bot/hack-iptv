@@ -400,6 +400,7 @@ class IptvRepository(
 
                             val groupTitle = liveCatMap[categoryId] ?: "Live TV"
                             val streamUrl = "$serverUrl/live/$username/$password/$streamId.ts"
+                            val detectedCountry = M3uParser.detectCountry(streamName, groupTitle, null)
 
                             channels.add(
                                 ChannelEntity(
@@ -411,7 +412,8 @@ class IptvRepository(
                                     tvgId = if (tvgId.isNotEmpty()) tvgId else null,
                                     tvgName = streamName,
                                     catchupType = null,
-                                    catchupSource = null
+                                    catchupSource = null,
+                                    country = detectedCountry
                                 )
                             )
                         } catch (e: Exception) {
@@ -439,6 +441,7 @@ class IptvRepository(
 
                             val groupTitle = vodCatMap[categoryId] ?: "Movies"
                             val streamUrl = "$serverUrl/movie/$username/$password/$streamId.$extension"
+                            val detectedCountry = M3uParser.detectCountry(streamName, groupTitle, null)
 
                             channels.add(
                                 ChannelEntity(
@@ -450,7 +453,8 @@ class IptvRepository(
                                     tvgId = null,
                                     tvgName = null,
                                     catchupType = null,
-                                    catchupSource = null
+                                    catchupSource = null,
+                                    country = detectedCountry
                                 )
                             )
                         } catch (e: Exception) {

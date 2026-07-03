@@ -24,7 +24,8 @@ data class ChannelEntity(
     val catchupType: String?,   // e.g. "default"
     val catchupDays: Int = 0,   // number of days available
     val catchupSource: String?, // append query template
-    val isFavorite: Boolean = false
+    val isFavorite: Boolean = false,
+    val country: String = "Other"
 )
 
 @Entity(tableName = "epg_programs")

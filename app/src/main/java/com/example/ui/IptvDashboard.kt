@@ -71,6 +71,7 @@ fun IptvDashboard(
     val autoFullscreen by viewModel.autoFullscreen.collectAsState()
 
     var activeTab by remember { mutableIntStateOf(0) }
+    var isUiVisible by remember { mutableStateOf(true) }
     
     // Live TV Overlay state
     var isOverlayVisible by remember { mutableStateOf(true) }
@@ -80,6 +81,17 @@ fun IptvDashboard(
         if (isOverlayVisible) {
             kotlinx.coroutines.delay(5000)
             isOverlayVisible = false
+        }
+    }
+
+    val isPlayerTab = activeTab in 0..3
+    val isPlaying = isPlayerTab && activePlayUrl != null
+    
+    // Auto-dismiss main UI menu after 5 seconds when a video is playing in player tabs
+    LaunchedEffect(isUiVisible, activePlayUrl, activeTab) {
+        if (isUiVisible && activePlayUrl != null && isPlayerTab) {
+            kotlinx.coroutines.delay(5000)
+            isUiVisible = false
         }
     }
 
@@ -97,7 +109,7 @@ fun IptvDashboard(
 
     LaunchedEffect(activePlayUrl) {
         if (activePlayUrl != null) {
-            isFullScreenMobile = autoFullscreen
+            isFullScreenMobile = false
             showMobileOverlayMenu = false
             showMobileControls = true
         } else {
@@ -276,8 +288,6 @@ fun IptvDashboard(
     // In a real scenario, we might detect TV vs Mobile using UiModeManager.
     // For now, we proceed as if MOBILE is the default.
 
-    var isUiVisible by remember { mutableStateOf(true) }
-
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -286,18 +296,31 @@ fun IptvDashboard(
         val currentPlayUrl = activePlayUrl
         val currentChannel = selectedChannel
         
-        // 1. Background Video Player for Live TV
-        if (activeTab == 0 && currentPlayUrl != null && currentChannel != null) {
+        // 1. Background Video Player for all player tabs (Live TV, PPV, Movies, Shows)
+        if (isPlayerTab && currentPlayUrl != null && currentChannel != null) {
             val context = LocalContext.current
+            val subLabel = when (activeTab) {
+                0 -> "Live TV"
+                1 -> "PPV"
+                2 -> "Movies"
+                3 -> "Shows"
+                else -> ""
+            }
             VideoPlayer(
                 videoUrl = currentPlayUrl,
                 title = currentChannel.name,
-                subtitle = "Live TV",
+                subtitle = subLabel,
                 onDownloadClick = { 
                     viewModel.downloadActiveStream()
                     android.widget.Toast.makeText(context, "Download started for ${currentChannel.name}", android.widget.Toast.LENGTH_SHORT).show()
                 },
-                isLiveStream = true,
+                isLiveStream = activeTab == 0 || activeTab == 1,
+                remoteCommands = viewModel.remoteCommandFlow,
+                onPlaybackStarted = {
+                    if (autoFullscreen) {
+                        isFullScreenMobile = true
+                    }
+                },
                 modifier = Modifier
                     .fillMaxSize()
                     .clickable { isUiVisible = !isUiVisible }
@@ -319,13 +342,13 @@ fun IptvDashboard(
                         .weight(1f)
                         .fillMaxWidth()
                 ) {
-                    val isLiveTvPlaying = activeTab == 0 && currentPlayUrl != null
+                    val isPlaying = isPlayerTab && currentPlayUrl != null
                     Box(
                         modifier = Modifier
                             .fillMaxHeight()
-                            .then(if (isLiveTvPlaying) Modifier.width(350.dp) else Modifier.fillMaxWidth())
-                            .background(Color(0xFF0F1115).copy(alpha = if (isLiveTvPlaying) 0.95f else 1f))
-                            .align(if (isLiveTvPlaying) Alignment.CenterStart else Alignment.Center)
+                            .then(if (isPlaying) Modifier.width(350.dp) else Modifier.fillMaxWidth())
+                            .background(Color(0xFF0F1115).copy(alpha = if (isPlaying) 1.0f else 1.0f))
+                            .align(if (isPlaying) Alignment.CenterStart else Alignment.Center)
                     ) {
                         Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
                             TabContent(
@@ -345,7 +368,7 @@ fun IptvDashboard(
                 
                 // 1. Bottom Navigation Bar
                 NavigationBar(
-                    containerColor = Color(0xFF131722).copy(alpha = if (activeTab == 0 && currentPlayUrl != null) 0.95f else 1f),
+                    containerColor = Color(0xFF131722).copy(alpha = if (isPlaying) 1.0f else 1f),
                     contentColor = Color.White
                 ) {
                     val deviceMode by viewModel.deviceMode.collectAsState()
@@ -389,8 +412,8 @@ fun IptvDashboard(
             }
         }
 
-        // If UI is hidden in Live TV, show a menu button to bring it back and a close button
-        if (activeTab == 0 && currentPlayUrl != null && !isUiVisible) {
+        // If UI is hidden in player tabs, show a menu button to bring it back and a close button
+        if (isPlayerTab && currentPlayUrl != null && !isUiVisible) {
             IconButton(
                 onClick = { isUiVisible = true },
                 modifier = Modifier
@@ -412,8 +435,8 @@ fun IptvDashboard(
             }
         }
         
-        // Full screen video player overlay for VOD/PPV (activeTab != 0)
-        if (currentPlayUrl != null && currentChannel != null && activeTab != 0) {
+        // Full screen video player overlay for other tabs (activeTab not in 0..3)
+        if (currentPlayUrl != null && currentChannel != null && !isPlayerTab) {
             FullScreenPlayerOverlay(
                 activePlayUrl = currentPlayUrl,
                 selectedChannel = currentChannel,
@@ -915,6 +938,8 @@ fun ChannelsExplorerTab(viewModel: IptvViewModel) {
     val deviceMode by viewModel.deviceMode.collectAsState()
     val isTvConnected by viewModel.isTvConnected.collectAsState()
     val categoryCounts by viewModel.categoryCounts.collectAsState()
+    val selectedCountry by viewModel.selectedCountry.collectAsState()
+    val countries by viewModel.countries.collectAsState()
 
     var showCategorySidebarMobile by remember { mutableStateOf(false) }
 
@@ -928,37 +953,93 @@ fun ChannelsExplorerTab(viewModel: IptvViewModel) {
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Search bar with Categories drawer trigger icon
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { viewModel.setSearchQuery(it) },
-                placeholder = { Text("Search channel name...") },
-                leadingIcon = {
-                    IconButton(
-                        onClick = { showCategorySidebarMobile = true },
-                        modifier = Modifier.testTag("open_categories_sidebar_mobile")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Category,
-                            contentDescription = "Open Categories Menu",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                },
-                trailingIcon = {
-                    if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { viewModel.setSearchQuery("") }) {
-                            Icon(Icons.Default.Close, contentDescription = "Clear")
-                        }
-                    }
-                },
-                singleLine = true,
-                shape = RoundedCornerShape(24.dp),
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 4.dp)
-                    .testTag("channel_search_bar")
-            )
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Search bar with Categories drawer trigger icon
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { viewModel.setSearchQuery(it) },
+                    placeholder = { Text("Search channel...") },
+                    leadingIcon = {
+                        IconButton(
+                            onClick = { showCategorySidebarMobile = true },
+                            modifier = Modifier.testTag("open_categories_sidebar_mobile")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Category,
+                                contentDescription = "Open Categories Menu",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { viewModel.setSearchQuery("") }) {
+                                Icon(Icons.Default.Close, contentDescription = "Clear")
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(24.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("channel_search_bar")
+                )
+
+                // Country selector dropdown trigger
+                var countryMenuExpanded by remember { mutableStateOf(false) }
+
+                Box {
+                    Button(
+                        onClick = { countryMenuExpanded = true },
+                        shape = RoundedCornerShape(24.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (selectedCountry == "All") MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primary,
+                            contentColor = if (selectedCountry == "All") MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onPrimary
+                        ),
+                        modifier = Modifier.testTag("country_selector_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Public,
+                            contentDescription = "Country",
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (selectedCountry == "All") "Country" else selectedCountry,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+
+                    DropdownMenu(
+                        expanded = countryMenuExpanded,
+                        onDismissRequest = { countryMenuExpanded = false }
+                    ) {
+                        countries.forEach { cry ->
+                            DropdownMenuItem(
+                                text = { Text(cry) },
+                                onClick = {
+                                    viewModel.selectCountry(cry)
+                                    countryMenuExpanded = false
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Public,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                },
+                                modifier = Modifier.testTag("country_option_$cry")
+                            )
+                        }
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -1007,132 +1088,45 @@ fun ChannelsExplorerTab(viewModel: IptvViewModel) {
                     }
                 }
             } else {
-                val streamType = channels.firstOrNull()?.getStreamType()
-                if (streamType == StreamType.MOVIE || streamType == StreamType.TV_SHOW) {
-                    val netflix = channels.filter { it.name.contains("Netflix", ignoreCase = true) || it.groupTitle.contains("Netflix", ignoreCase = true) }
-                    val disney = channels.filter { it.name.contains("Disney", ignoreCase = true) || it.groupTitle.contains("Disney", ignoreCase = true) }
-                    val others = channels.filter { it !in netflix && it !in disney }
-
-                    Row(modifier = Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (netflix.isNotEmpty()) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("Netflix", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(8.dp), color = Color.Red)
-                                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    items(netflix) { channel -> VodCard(channel, activeChannel, viewModel) }
-                                }
-                            }
-                        }
-                        if (disney.isNotEmpty()) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("Disney+", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(8.dp), color = Color(0xFF1E88E5))
-                                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    items(disney) { channel -> VodCard(channel, activeChannel, viewModel) }
-                                }
-                            }
-                        }
-                        Column(modifier = Modifier.weight(if (netflix.isEmpty() && disney.isEmpty()) 1f else 1.5f)) {
-                            Text("Other", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(8.dp))
-                            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                items(others) { channel -> VodCard(channel, activeChannel, viewModel) }
-                            }
-                        }
-                    }
-                } else {
+                if (searchQuery.isNotEmpty()) {
+                    // Show search results in a clean, high-performance responsive grid of posters
+                    val chunkedChannels = remember(channels) { channels.chunked(3) }
                     LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
                             .testTag("channel_list")
                     ) {
-                        items(channels) { channel ->
-                            val isPlaying = activeChannel?.id == channel.id
-                            val scale by animateFloatAsState(
-                                targetValue = if (isPlaying) 1.02f else 1f,
-                                label = "card_scale"
-                            )
-                            Card(
-                                colors = CardDefaults.cardColors(
-                                    containerColor = if (isPlaying) {
-                                        MaterialTheme.colorScheme.primaryContainer
-                                    } else {
-                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
-                                    }
-                                ),
-                                elevation = CardDefaults.cardElevation(
-                                    defaultElevation = if (isPlaying) 8.dp else 2.dp
-                                ),
-                                border = if (isPlaying) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .graphicsLayer(
-                                        scaleX = scale,
-                                        scaleY = scale,
-                                        shadowElevation = if (isPlaying) 16f else 4f,
-                                        shape = RoundedCornerShape(12.dp),
-                                        clip = true
-                                    )
-                                    .clickable { viewModel.selectChannel(channel) }
+                        items(chunkedChannels) { rowChannels ->
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    ChannelLogo(
-                                        logoUrl = channel.logoUrl,
-                                        channelName = channel.name,
-                                        modifier = Modifier.size(48.dp),
-                                        isPlaying = isPlaying
-                                    )
-
-                                    Spacer(modifier = Modifier.width(12.dp))
-
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = channel.name,
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.SemiBold,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                        Text(
-                                            text = channel.groupTitle,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = if (isPlaying) {
-                                                MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                                            } else {
-                                                MaterialTheme.colorScheme.onSurfaceVariant
-                                            }
-                                        )
-                                    }
-
-                                    if (deviceMode == "MOBILE" && isTvConnected) {
-                                        IconButton(
-                                            onClick = {
-                                                viewModel.sendRemoteCommand("PLAY_FEED|${channel.name}|${channel.streamUrl}|${channel.logoUrl ?: ""}|${channel.groupTitle}")
-                                            },
-                                            modifier = Modifier.testTag("cast_channel_${channel.id}")
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Cast,
-                                                contentDescription = "Cast to TV",
-                                                tint = MaterialTheme.colorScheme.primary
-                                            )
-                                        }
-                                    }
-
-                                    IconButton(onClick = { viewModel.toggleFavorite(channel) }) {
-                                        Icon(
-                                            imageVector = if (channel.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                                            contentDescription = "Favorite Toggle",
-                                            tint = if (channel.isFavorite) Color.Red else MaterialTheme.colorScheme.onSurface
+                                rowChannels.forEach { channel ->
+                                    Box(modifier = Modifier.weight(1f)) {
+                                        NetflixPosterCard(
+                                            channel = channel,
+                                            activeChannel = activeChannel,
+                                            viewModel = viewModel
                                         )
                                     }
                                 }
+                                val emptySpaces = 3 - rowChannels.size
+                                repeat(emptySpaces) {
+                                    Spacer(modifier = Modifier.weight(1f))
+                                }
                             }
                         }
+                    }
+                } else {
+                    // Immersive Netflix Dashboard when no active search
+                    Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                        NetflixDashboard(
+                            channels = channels,
+                            activeChannel = activeChannel,
+                            viewModel = viewModel
+                        )
                     }
                 }
             }
@@ -3050,6 +3044,99 @@ fun TvControllerTab(viewModel: IptvViewModel) {
                         }
                     }
 
+                    // Media Controls Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(
+                            onClick = { viewModel.sendRemoteCommand("REWIND") },
+                            modifier = Modifier
+                                .size(48.dp)
+                                .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
+                        ) {
+                            Icon(Icons.Default.FastRewind, contentDescription = "Rewind", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+
+                        IconButton(
+                            onClick = { viewModel.sendRemoteCommand("PLAY_PAUSE") },
+                            modifier = Modifier
+                                .size(56.dp)
+                                .background(MaterialTheme.colorScheme.primary, CircleShape)
+                        ) {
+                            Icon(Icons.Default.PlayArrow, contentDescription = "Play/Pause", tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(32.dp))
+                        }
+
+                        IconButton(
+                            onClick = { viewModel.sendRemoteCommand("FORWARD") },
+                            modifier = Modifier
+                                .size(48.dp)
+                                .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
+                        ) {
+                            Icon(Icons.Default.FastForward, contentDescription = "Fast Forward", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+
+                    // Volume & System Controls Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(
+                            onClick = { viewModel.sendRemoteCommand("VOLUME_DOWN") },
+                            modifier = Modifier
+                                .size(48.dp)
+                                .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
+                        ) {
+                            Icon(Icons.Default.VolumeDown, contentDescription = "Volume Down", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+
+                        IconButton(
+                            onClick = { viewModel.sendRemoteCommand("MUTE") },
+                            modifier = Modifier
+                                .size(48.dp)
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), CircleShape)
+                        ) {
+                            Icon(Icons.Default.VolumeMute, contentDescription = "Mute", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+
+                        IconButton(
+                            onClick = { viewModel.sendRemoteCommand("VOLUME_UP") },
+                            modifier = Modifier
+                                .size(48.dp)
+                                .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
+                        ) {
+                            Icon(Icons.Default.VolumeUp, contentDescription = "Volume Up", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+
+                    // System Navigation & Utilities Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(
+                            onClick = { viewModel.sendRemoteCommand("BACK") },
+                            modifier = Modifier
+                                .size(48.dp)
+                                .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
+                        ) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+
+                        IconButton(
+                            onClick = { viewModel.sendRemoteCommand("FULLSCREEN") },
+                            modifier = Modifier
+                                .size(48.dp)
+                                .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
+                        ) {
+                            Icon(Icons.Default.AspectRatio, contentDescription = "Aspect Ratio", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -3293,5 +3380,506 @@ fun TvConnectionsTab(viewModel: IptvViewModel) {
             Spacer(modifier = Modifier.width(8.dp))
             Text("Reset Device Mode (Show First Start Setup)")
         }
+    }
+}
+
+@Composable
+fun NetflixDashboard(
+    channels: List<ChannelEntity>,
+    activeChannel: ChannelEntity?,
+    viewModel: IptvViewModel,
+    modifier: Modifier = Modifier
+) {
+    val featuredItem = remember(channels) {
+        channels.firstOrNull { it.isFavorite } ?: channels.firstOrNull()
+    }
+
+    val favorites = remember(channels) { channels.filter { it.isFavorite } }
+    val netflix = remember(channels) { channels.filter { it.name.contains("Netflix", ignoreCase = true) || it.groupTitle.contains("Netflix", ignoreCase = true) } }
+    val disney = remember(channels) { channels.filter { it.name.contains("Disney", ignoreCase = true) || it.groupTitle.contains("Disney", ignoreCase = true) } }
+    val otherChannels = remember(channels, netflix, disney) { channels.filter { it !in netflix && it !in disney } }
+    val groups = remember(otherChannels) {
+        otherChannels.groupBy { it.groupTitle }
+            .filter { it.value.isNotEmpty() }
+            .toList()
+            .sortedByDescending { it.second.size }
+            .take(6)
+    }
+    val topGroupChannels = remember(groups) { groups.flatMap { it.second }.toSet() }
+    val remaining = remember(otherChannels, topGroupChannels) { otherChannels.filter { it !in topGroupChannels } }
+
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(24.dp),
+        contentPadding = PaddingValues(bottom = 32.dp)
+    ) {
+        if (featuredItem != null) {
+            item {
+                NetflixHeroBanner(featuredItem, activeChannel, viewModel)
+            }
+        }
+
+        if (favorites.isNotEmpty()) {
+            item {
+                NetflixSwimlane(
+                    title = "My List",
+                    channels = favorites,
+                    activeChannel = activeChannel,
+                    viewModel = viewModel
+                )
+            }
+        }
+
+        if (netflix.isNotEmpty()) {
+            item {
+                NetflixSwimlane(
+                    title = "Netflix Originals",
+                    channels = netflix,
+                    activeChannel = activeChannel,
+                    viewModel = viewModel,
+                    isOriginal = true
+                )
+            }
+        }
+
+        if (disney.isNotEmpty()) {
+            item {
+                NetflixSwimlane(
+                    title = "Disney+ Magic",
+                    channels = disney,
+                    activeChannel = activeChannel,
+                    viewModel = viewModel
+                )
+            }
+        }
+
+        items(groups) { group ->
+            val groupName = group.first
+            val groupList = group.second
+            NetflixSwimlane(
+                title = groupName,
+                channels = groupList,
+                activeChannel = activeChannel,
+                viewModel = viewModel
+            )
+        }
+
+        if (remaining.isNotEmpty()) {
+            item {
+                NetflixSwimlane(
+                    title = "More For You",
+                    channels = remaining,
+                    activeChannel = activeChannel,
+                    viewModel = viewModel
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun NetflixHeroBanner(
+    channel: ChannelEntity,
+    activeChannel: ChannelEntity?,
+    viewModel: IptvViewModel
+) {
+    val isPlaying = activeChannel?.id == channel.id
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(260.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color(0xFF131722))
+    ) {
+        if (!channel.logoUrl.isNullOrEmpty()) {
+            AsyncImage(
+                model = channel.logoUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(Color(0xFFE50914).copy(alpha = 0.3f), Color(0xFF0F1115))
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Movie,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.3f),
+                    modifier = Modifier.size(100.dp)
+                )
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            Color.Black.copy(alpha = 0.5f),
+                            Color(0xFF0F1115)
+                        )
+                    )
+                )
+        )
+
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(16.dp)
+        ) {
+            Surface(
+                color = Color(0xFFE50914),
+                shape = RoundedCornerShape(4.dp),
+                modifier = Modifier.padding(bottom = 6.dp)
+            ) {
+                Text(
+                    text = channel.groupTitle.uppercase(),
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp,
+                        color = Color.White
+                    ),
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                )
+            }
+
+            Text(
+                text = channel.name,
+                style = MaterialTheme.typography.headlineSmall.copy(
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color.White
+                ),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Button(
+                    onClick = { viewModel.selectChannel(channel) },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isPlaying) Color(0xFFE50914) else Color.White,
+                        contentColor = if (isPlaying) Color.White else Color.Black
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        contentDescription = "Play"
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = if (isPlaying) "Playing" else "Play",
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                }
+
+                OutlinedButton(
+                    onClick = { viewModel.toggleFavorite(channel) },
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = Color.White
+                    ),
+                    border = BorderStroke(1.5.dp, Color.White),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
+                ) {
+                    Icon(
+                        imageVector = if (channel.isFavorite) Icons.Default.Check else Icons.Default.Add,
+                        contentDescription = "My List"
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "My List",
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun NetflixSwimlane(
+    title: String,
+    channels: List<ChannelEntity>,
+    activeChannel: ChannelEntity?,
+    viewModel: IptvViewModel,
+    isOriginal: Boolean = false
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontWeight = FontWeight.ExtraBold,
+                color = Color.White,
+                letterSpacing = 0.5.sp
+            ),
+            modifier = Modifier.padding(horizontal = 4.dp)
+        )
+
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            contentPadding = PaddingValues(horizontal = 4.dp)
+        ) {
+            items(channels) { channel ->
+                NetflixPosterCard(
+                    channel = channel,
+                    activeChannel = activeChannel,
+                    viewModel = viewModel,
+                    isOriginal = isOriginal
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun NetflixPosterCard(
+    channel: ChannelEntity,
+    activeChannel: ChannelEntity?,
+    viewModel: IptvViewModel,
+    isOriginal: Boolean = false
+) {
+    var showInfoDialog by remember { mutableStateOf(false) }
+    val isPlaying = activeChannel?.id == channel.id
+    val scale by animateFloatAsState(targetValue = if (isPlaying) 1.05f else 1f, label = "poster_scale")
+    
+    var vodInfo by remember { mutableStateOf<org.json.JSONObject?>(null) }
+    var isLoadingInfo by remember { mutableStateOf(false) }
+
+    LaunchedEffect(showInfoDialog) {
+        if (showInfoDialog && vodInfo == null) {
+            isLoadingInfo = true
+            vodInfo = viewModel.getVodOrSeriesInfo(channel.streamUrl)
+            isLoadingInfo = false
+        }
+    }
+
+    val deviceMode by viewModel.deviceMode.collectAsState()
+    val isTvConnected by viewModel.isTvConnected.collectAsState()
+
+    val cardWidth = if (isOriginal) 130.dp else 115.dp
+    val cardHeight = if (isOriginal) 200.dp else 165.dp
+
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = if (isPlaying) Color(0xFFE50914).copy(alpha = 0.15f) else Color(0xFF1F232F)
+        ),
+        border = BorderStroke(
+            width = if (isPlaying) 2.dp else 1.dp,
+            color = if (isPlaying) Color(0xFFE50914) else Color.White.copy(alpha = 0.15f)
+        ),
+        shape = RoundedCornerShape(10.dp),
+        modifier = Modifier
+            .width(cardWidth)
+            .height(cardHeight)
+            .graphicsLayer(
+                scaleX = scale,
+                scaleY = scale
+            )
+            .clickable { viewModel.selectChannel(channel) }
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            if (!channel.logoUrl.isNullOrEmpty()) {
+                AsyncImage(
+                    model = channel.logoUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(Color(0xFF2C3246), Color(0xFF0F1115))
+                            )
+                        )
+                        .padding(8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = channel.name,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        ),
+                        maxLines = 4,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                }
+            }
+
+            IconButton(
+                onClick = { viewModel.toggleFavorite(channel) },
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .size(28.dp)
+                    .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+            ) {
+                Icon(
+                    imageVector = if (channel.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                    contentDescription = "Favorite",
+                    tint = if (channel.isFavorite) Color.Red else Color.White,
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+
+            IconButton(
+                onClick = { showInfoDialog = true },
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .size(28.dp)
+                    .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Info,
+                    contentDescription = "Info",
+                    tint = Color.White,
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+
+            if (deviceMode == "MOBILE" && isTvConnected) {
+                IconButton(
+                    onClick = {
+                        viewModel.sendRemoteCommand("PLAY_FEED|${channel.name}|${channel.streamUrl}|${channel.logoUrl ?: ""}|${channel.groupTitle}")
+                    },
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(4.dp)
+                        .size(28.dp)
+                        .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Cast,
+                        contentDescription = "Cast to TV",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+            }
+
+            if (isOriginal) {
+                Surface(
+                    color = Color(0xFFE50914),
+                    shape = RoundedCornerShape(bottomEnd = 4.dp),
+                    modifier = Modifier.align(Alignment.TopStart).offset(x = 28.dp)
+                ) {
+                    Text(
+                        text = "N",
+                        color = Color.White,
+                        fontWeight = FontWeight.Black,
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                    )
+                }
+            }
+
+            if (isPlaying) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(30.dp)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, Color(0xFFE50914).copy(alpha = 0.8f))
+                            )
+                        )
+                        .align(Alignment.BottomCenter),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "NOW PLAYING",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            fontSize = 8.sp
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    if (showInfoDialog) {
+        AlertDialog(
+            onDismissRequest = { showInfoDialog = false },
+            title = { Text(text = channel.name) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    if (!channel.logoUrl.isNullOrEmpty()) {
+                        AsyncImage(
+                            model = channel.logoUrl,
+                            contentDescription = null,
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.fillMaxWidth().height(150.dp)
+                        )
+                    }
+                    Text("Genre: ${channel.groupTitle}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                    
+                    if (isLoadingInfo) {
+                        CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+                    } else if (vodInfo != null) {
+                        val info = vodInfo?.optJSONObject("info")
+                        if (info != null) {
+                            val description = info.optString("plot", "").takeIf { it.isNotBlank() } ?: info.optString("description", "No description available.")
+                            val rating = info.optString("rating", "N/A")
+                            val cast = info.optString("cast", "N/A")
+                            val director = info.optString("director", "N/A")
+                            val releaseDate = info.optString("release_date", "N/A")
+                            
+                            Text("Rating: $rating", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                            Text("Release Date: $releaseDate", style = MaterialTheme.typography.bodySmall)
+                            Text("Director: $director", style = MaterialTheme.typography.bodySmall)
+                            Text("Cast: $cast", style = MaterialTheme.typography.bodySmall)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("Plot:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                            Text(description, style = MaterialTheme.typography.bodySmall)
+                        } else {
+                            Text("Additional metadata is not available for this item.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    } else {
+                        Text("Failed to load API info.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { 
+                        showInfoDialog = false
+                        viewModel.selectChannel(channel)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE50914))
+                ) {
+                    Text("Play Now")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showInfoDialog = false }) {
+                    Text("Close")
+                }
+            }
+        )
     }
 }

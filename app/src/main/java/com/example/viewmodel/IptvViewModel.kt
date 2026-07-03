@@ -114,19 +114,58 @@ class IptvViewModel(
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
-    // Dynamic combined list of Categories (Favorites, All, + parsed groups) filtered by StreamType and Selected Playlist
+    // Country Filtering State
+    private val _selectedCountry = MutableStateFlow("All")
+    val selectedCountry: StateFlow<String> = _selectedCountry.asStateFlow()
+
+    // Dynamic list of available countries derived from the current active playlist
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val countries: StateFlow<List<String>> = combine(
+        repository.allChannels,
+        _selectedPlaylistId
+    ) { allChans, playlistId ->
+        val filteredByPlaylist = if (playlistId != null) {
+            allChans.filter { it.playlistId == playlistId }
+        } else {
+            val firstPlaylistId = allChans.firstOrNull()?.playlistId
+            if (firstPlaylistId != null) {
+                allChans.filter { it.playlistId == firstPlaylistId }
+            } else {
+                emptyList()
+            }
+        }
+        val list = filteredByPlaylist
+            .map { it.country }
+            .distinct()
+            .filter { it.isNotEmpty() }
+            .sorted()
+        listOf("All") + list
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), listOf("All"))
+
+    // Dynamic combined list of Categories (Favorites, All, + parsed groups) filtered by StreamType, Selected Playlist, and Country
     @OptIn(ExperimentalCoroutinesApi::class)
     val categories: StateFlow<List<String>> = combine(
         repository.allChannels,
         _selectedStreamType,
-        _selectedPlaylistId
-    ) { allChans, streamType, playlistId ->
+        _selectedPlaylistId,
+        _selectedCountry
+    ) { allChans, streamType, playlistId, country ->
         val filteredByPlaylist = if (playlistId != null) {
             allChans.filter { it.playlistId == playlistId }
         } else {
-            allChans
+            val firstPlaylistId = allChans.firstOrNull()?.playlistId
+            if (firstPlaylistId != null) {
+                allChans.filter { it.playlistId == firstPlaylistId }
+            } else {
+                emptyList()
+            }
         }
-        val groups = filteredByPlaylist
+        val filteredByCountry = if (country != "All") {
+            filteredByPlaylist.filter { it.country.equals(country, ignoreCase = true) }
+        } else {
+            filteredByPlaylist
+        }
+        val groups = filteredByCountry
             .filter { it.getStreamType() == streamType }
             .map { it.groupTitle }
             .distinct()
@@ -140,14 +179,25 @@ class IptvViewModel(
     val categoryCounts: StateFlow<Map<String, Int>> = combine(
         repository.allChannels,
         _selectedStreamType,
-        _selectedPlaylistId
-    ) { allChans, streamType, playlistId ->
+        _selectedPlaylistId,
+        _selectedCountry
+    ) { allChans, streamType, playlistId, country ->
         val filteredByPlaylist = if (playlistId != null) {
             allChans.filter { it.playlistId == playlistId }
         } else {
-            allChans
+            val firstPlaylistId = allChans.firstOrNull()?.playlistId
+            if (firstPlaylistId != null) {
+                allChans.filter { it.playlistId == firstPlaylistId }
+            } else {
+                emptyList()
+            }
         }
-        val filteredByType = filteredByPlaylist.filter { it.getStreamType() == streamType }
+        val filteredByCountry = if (country != "All") {
+            filteredByPlaylist.filter { it.country.equals(country, ignoreCase = true) }
+        } else {
+            filteredByPlaylist
+        }
+        val filteredByType = filteredByCountry.filter { it.getStreamType() == streamType }
         
         val counts = mutableMapOf<String, Int>()
         counts["All"] = filteredByType.size
@@ -162,33 +212,63 @@ class IptvViewModel(
         counts
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
-    // Channel Filtering State based on category, query, streamType, and Selected Playlist
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val filteredChannels: StateFlow<List<ChannelEntity>> = combine(
-        repository.allChannels,
+    data class FilterState(
+        val category: String,
+        val query: String,
+        val streamType: StreamType,
+        val playlistId: Int?,
+        val country: String
+    )
+
+    private val filterStateFlow: Flow<FilterState> = combine(
         _selectedCategory,
         _searchQuery,
         _selectedStreamType,
-        _selectedPlaylistId
-    ) { allChans, category, query, streamType, playlistId ->
-        var list = allChans
-        
-        // 1. Filter by playlist
-        if (playlistId != null) {
-            list = list.filter { it.playlistId == playlistId }
+        _selectedPlaylistId,
+        _selectedCountry
+    ) { category, query, streamType, playlistId, country ->
+        FilterState(category, query, streamType, playlistId, country)
+    }
+
+    // Channel Filtering State based on category, query, streamType, country, and Selected Playlist
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val filteredChannels: StateFlow<List<ChannelEntity>> = combine(
+        repository.allChannels,
+        filterStateFlow
+    ) { allChans, filterState ->
+        val playlistId = filterState.playlistId
+        val country = filterState.country
+        val category = filterState.category
+        val streamType = filterState.streamType
+        val query = filterState.query
+
+        var list = if (playlistId != null) {
+            allChans.filter { it.playlistId == playlistId }
+        } else {
+            val firstPlaylistId = allChans.firstOrNull()?.playlistId
+            if (firstPlaylistId != null) {
+                allChans.filter { it.playlistId == firstPlaylistId }
+            } else {
+                emptyList()
+            }
         }
         
-        // 2. Filter by category
+        // Filter by country
+        if (country != "All") {
+            list = list.filter { it.country.equals(country, ignoreCase = true) }
+        }
+        
+        // Filter by category
         list = when (category) {
             "All" -> list
             "Favorites" -> list.filter { it.isFavorite }
             else -> list.filter { it.groupTitle == category }
         }
         
-        // 3. Filter by stream type
+        // Filter by stream type
         list = list.filter { it.getStreamType() == streamType }
         
-        // 4. Filter by search query
+        // Filter by search query
         if (query.isNotEmpty()) {
             list = list.filter { it.name.contains(query, ignoreCase = true) }
         }
@@ -238,6 +318,9 @@ class IptvViewModel(
 
     val activeDownloadStates: StateFlow<Map<Int, DownloadProgressState>> = repository.activeDownloadStates
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    private val _remoteCommandFlow = MutableSharedFlow<String>(extraBufferCapacity = 64)
+    val remoteCommandFlow = _remoteCommandFlow.asSharedFlow()
 
 
     init {
@@ -317,11 +400,19 @@ class IptvViewModel(
         _isPlayingCatchup.value = false
         _selectedProgram.value = null
         _selectedCategory.value = "All"
+        _selectedCountry.value = "All"
     }
 
     fun loadPlaylistOnStart(playlistId: Int) {
         _selectedPlaylistId.value = playlistId
         _showPlaylistSelectorOnStart.value = false
+        _selectedCategory.value = "All"
+        _selectedCountry.value = "All"
+    }
+
+    fun selectCountry(country: String) {
+        _selectedCountry.value = country
+        _selectedCategory.value = "All"
     }
 
     fun selectStreamType(streamType: StreamType) {
@@ -530,6 +621,7 @@ class IptvViewModel(
                             setTvIpAddress(ip)
                             _isTvConnected.value = true
                             matched = true
+                            uploadPlaylistsToTv(ip)
                             withContext(Dispatchers.Main) { onResult(true) }
                         }
                         socket.close()
@@ -708,6 +800,28 @@ class IptvViewModel(
                     setTvIpAddress(phoneIp)
                     _isTvConnected.value = true
                 }
+                "ADD_PLAYLIST" -> {
+                    if (parts.size >= 3) {
+                        val name = parts[1]
+                        val url = parts[2]
+                        if (url.startsWith("xtream://")) {
+                            val cleanUrl = url.substringAfter("xtream://")
+                            val userPassAndServer = cleanUrl.split("@")
+                            if (userPassAndServer.size >= 2) {
+                                val userPass = userPassAndServer[0]
+                                val server = userPassAndServer.drop(1).joinToString("@")
+                                val userPassSplit = userPass.split(":")
+                                if (userPassSplit.size >= 2) {
+                                    val u = userPassSplit[0]
+                                    val p = userPassSplit[1]
+                                    addXtreamPlaylist(name, server, u, p)
+                                }
+                            }
+                        } else {
+                            addPlaylist(name, url)
+                        }
+                    }
+                }
                 "UP" -> {
                     val channels = filteredChannels.value
                     val current = selectedChannel.value
@@ -725,6 +839,59 @@ class IptvViewModel(
                         val nextIndex = if (currentIndex == -1 || currentIndex >= channels.size - 1) 0 else currentIndex + 1
                         selectChannel(channels[nextIndex])
                     }
+                }
+                "LEFT" -> {
+                    val current = selectedChannel.value
+                    if (current != null) {
+                        _remoteCommandFlow.emit("REWIND")
+                    } else {
+                        val channels = filteredChannels.value
+                        if (channels.isNotEmpty()) {
+                            val currentIndex = channels.indexOfFirst { it.id == selectedChannel.value?.id }
+                            val nextIndex = if (currentIndex <= 0) channels.size - 1 else currentIndex - 1
+                            selectChannel(channels[nextIndex])
+                        }
+                    }
+                }
+                "RIGHT" -> {
+                    val current = selectedChannel.value
+                    if (current != null) {
+                        _remoteCommandFlow.emit("FORWARD")
+                    } else {
+                        val channels = filteredChannels.value
+                        if (channels.isNotEmpty()) {
+                            val currentIndex = channels.indexOfFirst { it.id == selectedChannel.value?.id }
+                            val nextIndex = if (currentIndex == -1 || currentIndex >= channels.size - 1) 0 else currentIndex + 1
+                            selectChannel(channels[nextIndex])
+                        }
+                    }
+                }
+                "PLAY_PAUSE" -> {
+                    _remoteCommandFlow.emit("PLAY_PAUSE")
+                }
+                "VOLUME_UP" -> {
+                    _remoteCommandFlow.emit("VOLUME_UP")
+                }
+                "VOLUME_DOWN" -> {
+                    _remoteCommandFlow.emit("VOLUME_DOWN")
+                }
+                "MUTE" -> {
+                    _remoteCommandFlow.emit("MUTE")
+                }
+                "FORWARD" -> {
+                    _remoteCommandFlow.emit("FORWARD")
+                }
+                "REWIND" -> {
+                    _remoteCommandFlow.emit("REWIND")
+                }
+                "FULLSCREEN" -> {
+                    _remoteCommandFlow.emit("FULLSCREEN")
+                }
+                "BACK" -> {
+                    _selectedChannel.value = null
+                    _activePlayUrl.value = null
+                    _isPlayingCatchup.value = false
+                    _selectedProgram.value = null
                 }
                 "PLAY_FEED" -> {
                     if (parts.size >= 3) {
@@ -796,10 +963,29 @@ class IptvViewModel(
                 socket.connect(java.net.InetSocketAddress(ip, 9999), 1500)
                 socket.close()
                 _isTvConnected.value = true
+                uploadPlaylistsToTv(ip)
                 withContext(Dispatchers.Main) { onResult(true) }
             } catch (e: Exception) {
                 _isTvConnected.value = false
                 withContext(Dispatchers.Main) { onResult(false) }
+            }
+        }
+    }
+
+    fun uploadPlaylistsToTv(ip: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val playlistList = repository.getStaticAllPlaylists()
+                for (playlist in playlistList) {
+                    val socket = java.net.Socket()
+                    socket.connect(java.net.InetSocketAddress(ip, 9999), 1500)
+                    val writer = java.io.PrintWriter(socket.getOutputStream(), true)
+                    writer.println("ADD_PLAYLIST|${playlist.name}|${playlist.url}")
+                    socket.close()
+                    kotlinx.coroutines.delay(200)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
     }
