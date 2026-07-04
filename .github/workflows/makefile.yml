@@ -20,14 +20,27 @@ jobs:
         distribution: 'temurin'
         cache: gradle
 
-    - name: Make gradlew executable
-      run: chmod +x ./gradlew
+    - name: Find gradlew and make executable
+      run: |
+        if [ -f "./gradlew" ]; then
+          chmod +x ./gradlew
+          echo "GRADLEW=./gradlew" >> $GITHUB_ENV
+          echo "Found gradlew at repository root"
+        elif [ -f "./app/gradlew" ]; then
+          chmod +x ./app/gradlew
+          echo "GRADLEW=./app/gradlew" >> $GITHUB_ENV
+          echo "Found gradlew at app/gradlew"
+        else
+          echo "gradlew not found in repository root or app/; aborting"
+          ls -la
+          exit 1
+        fi
 
     - name: Build APK
-      run: ./gradlew assembleRelease
+      run: $GRADLEW assembleRelease
 
     - name: Build AAB
-      run: ./gradlew bundleRelease
+      run: $GRADLEW bundleRelease
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
