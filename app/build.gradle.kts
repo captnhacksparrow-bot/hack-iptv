@@ -17,21 +17,26 @@ android {
     applicationId = "com.aistudio.captnhackstreams.iptv"
     minSdk = 24
     targetSdk = 36
-    versionCode = 15
-    versionName = "15.0"
+    versionCode = 16
+    versionName = "16.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
 
   signingConfigs {
     create("release") {
-      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
-      val keystoreFile = file(keystorePath)
+      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "my-upload-key.jks"
+      val keystoreFile = if (file(keystorePath).isAbsolute) {
+        file(keystorePath)
+      } else {
+        val rootFile = file("${rootDir}/$keystorePath")
+        if (rootFile.exists()) rootFile else file(keystorePath)
+      }
       if (keystoreFile.exists()) {
         storeFile = keystoreFile
-        storePassword = System.getenv("STORE_PASSWORD")
-        keyAlias = "upload"
-        keyPassword = System.getenv("KEY_PASSWORD")
+        storePassword = System.getenv("STORE_PASSWORD") ?: "changeit"
+        keyAlias = System.getenv("KEY_ALIAS") ?: "upload"
+        keyPassword = System.getenv("KEY_PASSWORD") ?: "changeit"
       }
     }
     create("debugConfig") {
@@ -48,8 +53,14 @@ android {
       isMinifyEnabled = true
       isShrinkResources = true
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "${rootDir}/proguard-rules.pro")
-      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
-      if (file(keystorePath).exists()) {
+      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "my-upload-key.jks"
+      val keystoreFile = if (file(keystorePath).isAbsolute) {
+        file(keystorePath)
+      } else {
+        val rootFile = file("${rootDir}/$keystorePath")
+        if (rootFile.exists()) rootFile else file(keystorePath)
+      }
+      if (keystoreFile.exists()) {
         signingConfig = signingConfigs.getByName("release")
       } else {
         signingConfig = signingConfigs.getByName("debugConfig")

@@ -12,6 +12,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.isActive
 import java.io.File
 
 class IptvViewModel(
@@ -28,8 +29,23 @@ class IptvViewModel(
     private val _tvIpAddress = MutableStateFlow<String>(prefs.getString("tv_ip_address", "") ?: "")
     val tvIpAddress: StateFlow<String> = _tvIpAddress.asStateFlow()
 
-    private val _isTvConnected = MutableStateFlow(false)
+    private val _isTvConnected = MutableStateFlow(prefs.getBoolean("is_tv_connected", false))
     val isTvConnected: StateFlow<Boolean> = _isTvConnected.asStateFlow()
+
+    private fun setTvConnected(connected: Boolean) {
+        _isTvConnected.value = connected
+        prefs.edit().putBoolean("is_tv_connected", connected).apply()
+    }
+
+    fun isOnSameNetwork(ip1: String, ip2: String): Boolean {
+        if (ip1.isEmpty() || ip2.isEmpty()) return false
+        val parts1 = ip1.split(".")
+        val parts2 = ip2.split(".")
+        if (parts1.size >= 3 && parts2.size >= 3) {
+            return parts1[0] == parts2[0] && parts1[1] == parts2[1] && parts1[2] == parts2[2]
+        }
+        return false
+    }
 
     // Premium IPTV Profile states
     private val _premiumUsername = MutableStateFlow(prefs.getString("premium_username", "") ?: "")
@@ -289,6 +305,39 @@ class IptvViewModel(
     private val _selectedProgram = MutableStateFlow<EpgProgramEntity?>(null)
     val selectedProgram: StateFlow<EpgProgramEntity?> = _selectedProgram.asStateFlow()
 
+    // Sleep Timer State
+    private val _sleepTimerTimeLeft = MutableStateFlow<Int?>(null)
+    val sleepTimerTimeLeft: StateFlow<Int?> = _sleepTimerTimeLeft.asStateFlow()
+
+    private var sleepTimerJob: kotlinx.coroutines.Job? = null
+
+    fun startSleepTimer(minutes: Int) {
+        sleepTimerJob?.cancel()
+        _sleepTimerTimeLeft.value = minutes * 60
+        sleepTimerJob = viewModelScope.launch {
+            while (isActive) {
+                kotlinx.coroutines.delay(1000L)
+                val current = _sleepTimerTimeLeft.value
+                if (current != null) {
+                    if (current <= 1) {
+                        _sleepTimerTimeLeft.value = null
+                        clearSelectedChannel()
+                        break
+                    } else {
+                        _sleepTimerTimeLeft.value = current - 1
+                    }
+                } else {
+                    break
+                }
+            }
+        }
+    }
+
+    fun cancelSleepTimer() {
+        sleepTimerJob?.cancel()
+        _sleepTimerTimeLeft.value = null
+    }
+
     // Dynamic EPG programs for the currently selected channel
     @OptIn(ExperimentalCoroutinesApi::class)
     val epgPrograms: StateFlow<List<EpgProgramEntity>> = _selectedChannel
@@ -303,6 +352,10 @@ class IptvViewModel(
 
     // Downloads list state
     val downloads: StateFlow<List<DownloadEntity>> = repository.downloads
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Favorite channels state
+    val favoriteChannels: StateFlow<List<ChannelEntity>> = repository.favoriteChannels
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // UI Loading state variables
@@ -327,6 +380,15 @@ class IptvViewModel(
         // Automatically start remote server if TV mode is active
         if (_deviceMode.value == "TV") {
             startRemoteServer()
+        }
+
+        // Verify remote connection network subnet on start to keep or disconnect
+        if (_isTvConnected.value && _tvIpAddress.value.isNotEmpty()) {
+            val localIp = getLocalIpAddress()
+            val tvIp = _tvIpAddress.value
+            if (!isOnSameNetwork(localIp, tvIp)) {
+                setTvConnected(false)
+            }
         }
 
         // Pre-populate with free list index and clean up old premium/VOD lists if present
@@ -492,6 +554,7 @@ class IptvViewModel(
                 val added = allPlaylists.find { it.url == url }
                 if (added != null) {
                     selectPlaylist(added.id)
+                    _showPlaylistSelectorOnStart.value = false
                 }
             } else {
                 _playlistAddError.value = "Failed to parse playlist. Check URL."
@@ -522,6 +585,7 @@ class IptvViewModel(
                 val added = allPlaylists.find { it.url.startsWith("xtream://$username") }
                 if (added != null) {
                     selectPlaylist(added.id)
+                    _showPlaylistSelectorOnStart.value = false
                 }
             } else {
                 _playlistAddError.value = "Failed to connect or fetch from Xtream server. Verify credentials & connection."
@@ -619,7 +683,7 @@ class IptvViewModel(
                         val response = reader.readLine()
                         if (response != null && response.startsWith("PAIR_OK")) {
                             setTvIpAddress(ip)
-                            _isTvConnected.value = true
+                            setTvConnected(true)
                             matched = true
                             uploadPlaylistsToTv(ip)
                             withContext(Dispatchers.Main) { onResult(true) }
@@ -638,7 +702,7 @@ class IptvViewModel(
     }
 
     fun disconnectFromTv() {
-        _isTvConnected.value = false
+        setTvConnected(false)
         prefs.edit().putString("tv_ip_address", "").apply()
         _tvIpAddress.value = ""
     }
@@ -798,7 +862,7 @@ class IptvViewModel(
                 "PAIR_QUERY" -> {
                     val phoneIp = parts.getOrNull(2) ?: ""
                     setTvIpAddress(phoneIp)
-                    _isTvConnected.value = true
+                    setTvConnected(true)
                 }
                 "ADD_PLAYLIST" -> {
                     if (parts.size >= 3) {
@@ -962,11 +1026,11 @@ class IptvViewModel(
                 val socket = java.net.Socket()
                 socket.connect(java.net.InetSocketAddress(ip, 9999), 1500)
                 socket.close()
-                _isTvConnected.value = true
+                setTvConnected(true)
                 uploadPlaylistsToTv(ip)
                 withContext(Dispatchers.Main) { onResult(true) }
             } catch (e: Exception) {
-                _isTvConnected.value = false
+                setTvConnected(false)
                 withContext(Dispatchers.Main) { onResult(false) }
             }
         }
@@ -991,7 +1055,7 @@ class IptvViewModel(
     }
 
     fun disconnectTv() {
-        _isTvConnected.value = false
+        setTvConnected(false)
     }
 
     fun sendRemoteCommand(command: String) {
@@ -1004,9 +1068,15 @@ class IptvViewModel(
                 val writer = java.io.PrintWriter(socket.getOutputStream(), true)
                 writer.println(command)
                 socket.close()
-                _isTvConnected.value = true
+                setTvConnected(true)
             } catch (e: Exception) {
-                _isTvConnected.value = false
+                val localIp = getLocalIpAddress()
+                val tvIp = _tvIpAddress.value
+                if (isOnSameNetwork(localIp, tvIp)) {
+                    setTvConnected(true)
+                } else {
+                    setTvConnected(false)
+                }
             }
         }
     }
