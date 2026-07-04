@@ -33,14 +33,6 @@ class MainActivity : ComponentActivity() {
         }
 
         requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !android.provider.Settings.canDrawOverlays(this)) {
-            val intent = android.content.Intent(
-                android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                android.net.Uri.parse("package:$packageName")
-            )
-            startActivity(intent)
-        }
         
         enableEdgeToEdge()
         setContent {

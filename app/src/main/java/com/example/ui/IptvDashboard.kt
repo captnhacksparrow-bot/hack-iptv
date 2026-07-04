@@ -514,6 +514,57 @@ fun IptvDashboard(
                 var drawerSearchQuery by remember { mutableStateOf("") }
                 val globalSearchChannels by viewModel.globalSearchChannels.collectAsState()
 
+                // Global Country Filter
+                val selectedCountry by viewModel.selectedCountry.collectAsState()
+                val countriesList by viewModel.countries.collectAsState()
+                var countryExpanded by remember { mutableStateOf(false) }
+
+                Box(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+                    OutlinedButton(
+                        onClick = { countryExpanded = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = Color.Transparent,
+                            contentColor = Color.White
+                        ),
+                        border = BorderStroke(1.dp, Color.Gray)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Country: $selectedCountry",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color.White
+                            )
+                            Icon(
+                                imageVector = Icons.Default.ArrowDropDown,
+                                contentDescription = "Select Country",
+                                tint = Color.LightGray
+                            )
+                        }
+                    }
+
+                    DropdownMenu(
+                        expanded = countryExpanded,
+                        onDismissRequest = { countryExpanded = false },
+                        modifier = Modifier.fillMaxWidth(0.9f).background(Color(0xFF131722))
+                    ) {
+                        countriesList.forEach { country ->
+                            DropdownMenuItem(
+                                text = { Text(country, color = Color.White) },
+                                onClick = {
+                                    viewModel.selectCountry(country)
+                                    countryExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
                 OutlinedTextField(
                     value = drawerSearchQuery,
                     onValueChange = { 
@@ -1345,326 +1396,144 @@ fun ChannelsExplorerTab(viewModel: IptvViewModel) {
     val searchQuery by viewModel.searchQuery.collectAsState()
     val channels by viewModel.filteredChannels.collectAsState()
     val activeChannel by viewModel.selectedChannel.collectAsState()
-    val deviceMode by viewModel.deviceMode.collectAsState()
-    val isTvConnected by viewModel.isTvConnected.collectAsState()
     val categoryCounts by viewModel.categoryCounts.collectAsState()
-    val selectedCountry by viewModel.selectedCountry.collectAsState()
-    val countries by viewModel.countries.collectAsState()
-
-    var showCategorySidebarMobile by remember { mutableStateOf(false) }
-
-    // Auto-dismiss sidebar after 8 seconds of inactivity
-    LaunchedEffect(showCategorySidebarMobile) {
-        if (showCategorySidebarMobile) {
-            kotlinx.coroutines.delay(8000)
-            showCategorySidebarMobile = false
-        }
-    }
-
-    val selectedStreamType by viewModel.selectedStreamType.collectAsState()
-    val isLiveOrPpv = selectedStreamType == StreamType.LIVE_TV || selectedStreamType == StreamType.PPV
-
+    
     Box(modifier = Modifier.fillMaxSize()) {
-        if (isLiveOrPpv) {
-            Row(modifier = Modifier.fillMaxSize()) {
-                // Permanent sidebar on the left side of the screen
-                com.example.ui.components.CategorySidebar(
-                    categories = categories,
-                    selectedCategory = selectedCategory,
-                    onCategorySelected = { category ->
-                        viewModel.selectCategory(category)
-                    },
-                    categoryCounts = categoryCounts,
-                    modifier = Modifier
-                        .width(260.dp)
-                        .fillMaxHeight()
-                )
-
-                Spacer(modifier = Modifier.width(16.dp))
-
-                // Right-aligned channel grid layout
-                Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = searchQuery,
-                            onValueChange = { viewModel.setSearchQuery(it) },
-                            placeholder = { Text("Search channel...") },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.Search,
-                                    contentDescription = "Search",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            },
-                            trailingIcon = {
-                                if (searchQuery.isNotEmpty()) {
-                                    IconButton(onClick = { viewModel.setSearchQuery("") }) {
-                                        Icon(Icons.Default.Close, contentDescription = "Clear")
-                                    }
-                                }
-                            },
-                            singleLine = true,
-                            shape = RoundedCornerShape(24.dp),
-                            modifier = Modifier
-                                .weight(1f)
-                                .testTag("channel_search_bar")
-                        )
-
-                        // Country selector dropdown trigger
-                        var countryMenuExpanded by remember { mutableStateOf(false) }
-
-                        Box {
-                            Button(
-                                onClick = { countryMenuExpanded = true },
-                                shape = RoundedCornerShape(24.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (selectedCountry == "All") MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primary,
-                                    contentColor = if (selectedCountry == "All") MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onPrimary
-                                ),
-                                modifier = Modifier.testTag("country_selector_button")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Public,
-                                    contentDescription = "Country",
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = if (selectedCountry == "All") "Country" else selectedCountry,
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                            }
-
-                            DropdownMenu(
-                                expanded = countryMenuExpanded,
-                                onDismissRequest = { countryMenuExpanded = false }
-                            ) {
-                                countries.forEach { cry ->
-                                    DropdownMenuItem(
-                                        text = { Text(cry) },
-                                        onClick = {
-                                            viewModel.selectCountry(cry)
-                                            countryMenuExpanded = false
-                                        },
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = Icons.Default.Public,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        },
-                                        modifier = Modifier.testTag("country_option_$cry")
-                                    )
-                                }
-                            }
-                        }
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (selectedCategory != "All") {
+                    IconButton(onClick = { viewModel.selectCategory("All") }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
                     }
+                    Text(
+                        text = selectedCategory,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                }
 
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Grid/List of Channels
-                    if (channels.isEmpty()) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(
-                                    imageVector = Icons.Default.TvOff,
-                                    contentDescription = "No channels found",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(48.dp)
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = if (searchQuery.isNotEmpty()) "No channels match your search" else "No channels in this category",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { viewModel.setSearchQuery(it) },
+                    placeholder = { Text("Search...") },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Search",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { viewModel.setSearchQuery("") }) {
+                                Icon(Icons.Default.Close, contentDescription = "Clear")
                             }
                         }
-                    } else {
-                        if (searchQuery.isNotEmpty()) {
-                            val chunkedChannels = remember(channels) { channels.chunked(3) }
-                            LazyColumn(
-                                verticalArrangement = Arrangement.spacedBy(12.dp),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxWidth()
-                                    .testTag("channel_list")
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(24.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("channel_search_bar")
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (selectedCategory == "All" && searchQuery.isEmpty()) {
+                val validCategories = remember(categories) { categories.filter { it != "All" } }
+                if (validCategories.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("No folders found", color = Color.Gray)
+                    }
+                } else {
+                    val chunkedCategories = remember(validCategories) { validCategories.chunked(4) }
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp)
+                    ) {
+                        items(chunkedCategories) { rowCats ->
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                items(chunkedChannels) { rowChannels ->
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                        modifier = Modifier.fillMaxWidth()
+                                rowCats.forEach { category ->
+                                    val count = categoryCounts[category] ?: 0
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                                        shape = RoundedCornerShape(16.dp),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .aspectRatio(1.5f)
+                                            .clickable { viewModel.selectCategory(category) }
                                     ) {
-                                        rowChannels.forEach { channel ->
-                                            Box(modifier = Modifier.weight(1f)) {
-                                                NetflixPosterCard(
-                                                    channel = channel,
-                                                    activeChannel = activeChannel,
-                                                    viewModel = viewModel
+                                        Column(
+                                            modifier = Modifier.fillMaxSize().padding(16.dp),
+                                            verticalArrangement = Arrangement.Center,
+                                            horizontalAlignment = Alignment.CenterHorizontally
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Folder,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(48.dp)
+                                            )
+                                            Spacer(modifier = Modifier.height(12.dp))
+                                            Text(
+                                                text = category,
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White,
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis,
+                                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                            )
+                                            if (count > 0) {
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Text(
+                                                    text = "$count items",
+                                                    style = MaterialTheme.typography.labelMedium,
+                                                    color = Color.Gray
                                                 )
                                             }
                                         }
-                                        val emptySpaces = 3 - rowChannels.size
-                                        repeat(emptySpaces) {
-                                            Spacer(modifier = Modifier.weight(1f))
-                                        }
                                     }
                                 }
-                            }
-                        } else {
-                            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                                NetflixDashboard(
-                                    channels = channels,
-                                    activeChannel = activeChannel,
-                                    viewModel = viewModel
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        } else {
-            Column(modifier = Modifier.fillMaxSize()) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // Search bar with Categories drawer trigger icon
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { viewModel.setSearchQuery(it) },
-                        placeholder = { Text("Search channel...") },
-                        leadingIcon = {
-                            IconButton(
-                                onClick = { showCategorySidebarMobile = true },
-                                modifier = Modifier.testTag("open_categories_sidebar_mobile")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Category,
-                                    contentDescription = "Open Categories Menu",
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        },
-                        trailingIcon = {
-                            if (searchQuery.isNotEmpty()) {
-                                IconButton(onClick = { viewModel.setSearchQuery("") }) {
-                                    Icon(Icons.Default.Close, contentDescription = "Clear")
+                                val emptySpaces = 4 - rowCats.size
+                                repeat(emptySpaces) {
+                                    Spacer(modifier = Modifier.weight(1f))
                                 }
                             }
-                        },
-                        singleLine = true,
-                        shape = RoundedCornerShape(24.dp),
-                        modifier = Modifier
-                            .weight(1f)
-                            .testTag("channel_search_bar")
-                    )
-
-                    // Country selector dropdown trigger
-                    var countryMenuExpanded by remember { mutableStateOf(false) }
-
-                    Box {
-                        Button(
-                            onClick = { countryMenuExpanded = true },
-                            shape = RoundedCornerShape(24.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (selectedCountry == "All") MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primary,
-                                contentColor = if (selectedCountry == "All") MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onPrimary
-                            ),
-                            modifier = Modifier.testTag("country_selector_button")
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Public,
-                                contentDescription = "Country",
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = if (selectedCountry == "All") "Country" else selectedCountry,
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-
-                        DropdownMenu(
-                            expanded = countryMenuExpanded,
-                            onDismissRequest = { countryMenuExpanded = false }
-                        ) {
-                            countries.forEach { cry ->
-                                DropdownMenuItem(
-                                    text = { Text(cry) },
-                                    onClick = {
-                                        viewModel.selectCountry(cry)
-                                        countryMenuExpanded = false
-                                    },
-                                    leadingIcon = {
-                                        Icon(
-                                            imageVector = Icons.Default.Public,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    },
-                                    modifier = Modifier.testTag("country_option_$cry")
-                                )
-                            }
                         }
                     }
                 }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Horizontal Category slide as fallback / quick access
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    items(categories) { category ->
-                        FilterChip(
-                            selected = selectedCategory == category,
-                            onClick = { viewModel.selectCategory(category) },
-                            label = { Text(category) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary
-                            ),
-                            shape = RoundedCornerShape(16.dp)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Grid/List of Channels
+            } else {
                 if (channels.isEmpty()) {
                     Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
+                        modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(
                                 imageVector = Icons.Default.TvOff,
-                                contentDescription = "No channels found",
+                                contentDescription = "No items",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(48.dp)
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = if (searchQuery.isNotEmpty()) "No channels match your search" else "No channels in this category",
+                                text = if (searchQuery.isNotEmpty()) "No items match your search" else "No items in this folder",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -1672,14 +1541,10 @@ fun ChannelsExplorerTab(viewModel: IptvViewModel) {
                     }
                 } else {
                     if (searchQuery.isNotEmpty()) {
-                        // Show search results in a clean, high-performance responsive grid of posters
                         val chunkedChannels = remember(channels) { channels.chunked(3) }
                         LazyColumn(
                             verticalArrangement = Arrangement.spacedBy(12.dp),
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxWidth()
-                                .testTag("channel_list")
+                            modifier = Modifier.fillMaxSize().testTag("channel_list")
                         ) {
                             items(chunkedChannels) { rowChannels ->
                                 Row(
@@ -1703,7 +1568,6 @@ fun ChannelsExplorerTab(viewModel: IptvViewModel) {
                             }
                         }
                     } else {
-                        // Immersive Netflix Dashboard when no active search
                         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                             NetflixDashboard(
                                 channels = channels,
@@ -1713,39 +1577,6 @@ fun ChannelsExplorerTab(viewModel: IptvViewModel) {
                         }
                     }
                 }
-            }
-
-            // Semitransparent Scrim Overlay when Category Sidebar is open
-            if (showCategorySidebarMobile) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.5f))
-                        .clickable { showCategorySidebarMobile = false }
-                        .testTag("category_sidebar_scrim_mobile")
-                )
-            }
-
-            // Sliding left CategorySidebar component
-            AnimatedVisibility(
-                visible = showCategorySidebarMobile,
-                enter = fadeIn() + slideInHorizontally(initialOffsetX = { -it }),
-                exit = fadeOut() + slideOutHorizontally(targetOffsetX = { -it }),
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .width(260.dp)
-                    .align(Alignment.CenterStart)
-            ) {
-                com.example.ui.components.CategorySidebar(
-                    categories = categories,
-                    selectedCategory = selectedCategory,
-                    onCategorySelected = { category ->
-                        viewModel.selectCategory(category)
-                        showCategorySidebarMobile = false
-                    },
-                    categoryCounts = categoryCounts,
-                    modifier = Modifier.fillMaxSize()
-                )
             }
         }
     }
@@ -3352,65 +3183,6 @@ fun ProfileTab(viewModel: IptvViewModel, onNavigateToPlaylists: () -> Unit) {
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // Global Country Filter Card
-                    val selectedCountry by viewModel.selectedCountry.collectAsState()
-                    val countriesList by viewModel.countries.collectAsState()
-                    var countryExpanded by remember { mutableStateOf(false) }
-
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Text(
-                                "Global Country Filter",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Box(modifier = Modifier.fillMaxWidth()) {
-                                OutlinedButton(
-                                    onClick = { countryExpanded = true },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(8.dp)
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = "Selected: $selectedCountry",
-                                            color = Color.White
-                                        )
-                                        Icon(
-                                            imageVector = Icons.Default.ArrowDropDown,
-                                            contentDescription = "Select Country",
-                                            tint = Color.White
-                                        )
-                                    }
-                                }
-
-                                DropdownMenu(
-                                    expanded = countryExpanded,
-                                    onDismissRequest = { countryExpanded = false },
-                                    modifier = Modifier.fillMaxWidth(0.9f).background(Color(0xFF131722))
-                                ) {
-                                    countriesList.forEach { country ->
-                                        DropdownMenuItem(
-                                            text = { Text(country, color = Color.White) },
-                                            onClick = {
-                                                viewModel.selectCountry(country)
-                                                countryExpanded = false
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-
                     // Theme config card
                     Card(
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)),
