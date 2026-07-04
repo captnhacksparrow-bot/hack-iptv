@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.RadioButtonChecked
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -31,6 +32,7 @@ import kotlinx.coroutines.flow.SharedFlow
 @OptIn(UnstableApi::class)
 @Composable
 fun VideoPlayer(
+    isInPipMode: Boolean = false,
     videoUrl: String,
     title: String,
     subtitle: String?,
@@ -150,18 +152,19 @@ fun VideoPlayer(
                 },
                 update = { view ->
                     view.resizeMode = resizeMode
-                    view.useController = true
+                    view.useController = !isInPipMode
                 },
                 modifier = Modifier.fillMaxSize()
             )
         }
 
         // Normal details overlay
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(8.dp)
-        ) {
+        if (!isInPipMode) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(8.dp)
+            ) {
             // Text details on top-left
             Column(
                 modifier = Modifier
@@ -217,13 +220,14 @@ fun VideoPlayer(
                     modifier = Modifier.size(36.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Download,
-                        contentDescription = "Download Stream",
-                        tint = Color.White,
+                        imageVector = if (isLiveStream) Icons.Default.RadioButtonChecked else Icons.Default.Download,
+                        contentDescription = if (isLiveStream) "Record Stream" else "Download Stream",
+                        tint = if (isLiveStream) Color.Red else Color.White,
                         modifier = Modifier.size(20.dp)
                     )
                 }
             }
         }
+        } // Close if (!isInPipMode)
     }
 }

@@ -57,6 +57,7 @@ import java.util.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun IptvDashboard(
+    isInPipMode: Boolean = false,
     viewModel: IptvViewModel,
     modifier: Modifier = Modifier
 ) {
@@ -438,6 +439,7 @@ fun IptvDashboard(
         // Full screen video player overlay for other tabs (activeTab not in 0..3)
         if (currentPlayUrl != null && currentChannel != null && !isPlayerTab) {
             FullScreenPlayerOverlay(
+                isInPipMode = isInPipMode,
                 activePlayUrl = currentPlayUrl,
                 selectedChannel = currentChannel,
                 viewModel = viewModel,
@@ -450,6 +452,7 @@ fun IptvDashboard(
 
 @Composable
 fun FullScreenPlayerOverlay(
+    isInPipMode: Boolean = false,
     activePlayUrl: String,
     selectedChannel: ChannelEntity,
     viewModel: IptvViewModel,
@@ -492,6 +495,7 @@ fun FullScreenPlayerOverlay(
             videoUrl = activePlayUrl,
             title = selectedChannel.name,
             subtitle = subtitle,
+            isInPipMode = isInPipMode,
             onDownloadClick = {
                 viewModel.downloadActiveStream()
                 android.widget.Toast.makeText(context, "Download started for ${selectedChannel.name}", android.widget.Toast.LENGTH_SHORT).show()
@@ -500,24 +504,25 @@ fun FullScreenPlayerOverlay(
             modifier = Modifier.fillMaxSize()
         )
         
-        // Top right close button
-        IconButton(
-            onClick = onClose,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(16.dp)
-                .background(Color.Black.copy(alpha = 0.5f), CircleShape)
-        ) {
-            Icon(Icons.Default.Close, contentDescription = "Close Player", tint = Color.White)
-        }
-
-        // Opaque overlay EPG on the left containing channel listings
-        AnimatedVisibility(
-            visible = showEpgOverlay,
-            enter = slideInHorizontally() + fadeIn(),
-            exit = slideOutHorizontally() + fadeOut(),
-            modifier = Modifier.align(Alignment.CenterStart)
-        ) {
+        if (!isInPipMode) {
+            // Top right close button
+            IconButton(
+                onClick = onClose,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(16.dp)
+                    .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+            ) {
+                Icon(Icons.Default.Close, contentDescription = "Close Player", tint = Color.White)
+            }
+    
+            // Opaque overlay EPG on the left containing channel listings
+            AnimatedVisibility(
+                visible = showEpgOverlay,
+                enter = slideInHorizontally() + fadeIn(),
+                exit = slideOutHorizontally() + fadeOut(),
+                modifier = Modifier.align(Alignment.CenterStart)
+            ) {
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
@@ -603,6 +608,7 @@ fun FullScreenPlayerOverlay(
                 Icon(Icons.Default.Menu, contentDescription = "Open Channels", tint = Color.White)
             }
         }
+        } // Close if (!isInPipMode)
     }
 }
 
@@ -831,6 +837,50 @@ fun VodCard(channel: ChannelEntity, activeChannel: ChannelEntity?, viewModel: Ip
                         tint = Color.White.copy(alpha = 0.8f),
                         modifier = Modifier.size(48.dp)
                     )
+                }
+
+                val streamType = remember(channel) { channel.getStreamType().name.replace("_", " ") }
+                val qualityTag = remember(channel.name) {
+                    val upperName = channel.name.uppercase()
+                    when {
+                        upperName.contains("4K") || upperName.contains("UHD") -> "4K"
+                        upperName.contains("FHD") || upperName.contains("1080") -> "FHD"
+                        upperName.contains("HD") || upperName.contains("720") -> "HD"
+                        upperName.contains("SD") || upperName.contains("480") -> "SD"
+                        else -> ""
+                    }
+                }
+
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Surface(
+                        color = Color.Black.copy(alpha = 0.7f),
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Text(
+                            text = streamType,
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
+                            color = Color.White,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                    if (qualityTag.isNotEmpty()) {
+                        Surface(
+                            color = Color(0xFFE50914).copy(alpha = 0.8f),
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Text(
+                                text = qualityTag,
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
+                                color = Color.White,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
                 }
                 
                 IconButton(
@@ -3538,20 +3588,69 @@ fun NetflixHeroBanner(
                 .align(Alignment.BottomStart)
                 .padding(16.dp)
         ) {
-            Surface(
-                color = Color(0xFFE50914),
-                shape = RoundedCornerShape(4.dp),
-                modifier = Modifier.padding(bottom = 6.dp)
+            val streamType = remember(channel) { channel.getStreamType().name.replace("_", " ") }
+            val qualityTag = remember(channel.name) {
+                val upperName = channel.name.uppercase()
+                when {
+                    upperName.contains("4K") || upperName.contains("UHD") -> "4K"
+                    upperName.contains("FHD") || upperName.contains("1080") -> "FHD"
+                    upperName.contains("HD") || upperName.contains("720") -> "HD"
+                    upperName.contains("SD") || upperName.contains("480") -> "SD"
+                    else -> ""
+                }
+            }
+
+            Row(
+                modifier = Modifier.padding(bottom = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = channel.groupTitle.uppercase(),
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp,
-                        color = Color.White
-                    ),
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                )
+                Surface(
+                    color = Color(0xFFE50914),
+                    shape = RoundedCornerShape(4.dp)
+                ) {
+                    Text(
+                        text = channel.groupTitle.uppercase(),
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp,
+                            color = Color.White
+                        ),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                    )
+                }
+
+                Surface(
+                    color = Color.White.copy(alpha = 0.2f),
+                    shape = RoundedCornerShape(4.dp)
+                ) {
+                    Text(
+                        text = streamType,
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp,
+                            color = Color.White
+                        ),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                    )
+                }
+
+                if (qualityTag.isNotEmpty()) {
+                    Surface(
+                        color = Color.White.copy(alpha = 0.2f),
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Text(
+                            text = qualityTag,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp,
+                                color = Color.White
+                            ),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        )
+                    }
+                }
             }
 
             Text(
@@ -3664,7 +3763,6 @@ fun NetflixPosterCard(
     
     var vodInfo by remember { mutableStateOf<org.json.JSONObject?>(null) }
     var isLoadingInfo by remember { mutableStateOf(false) }
-
     LaunchedEffect(showInfoDialog) {
         if (showInfoDialog && vodInfo == null) {
             isLoadingInfo = true
@@ -3675,7 +3773,6 @@ fun NetflixPosterCard(
 
     val deviceMode by viewModel.deviceMode.collectAsState()
     val isTvConnected by viewModel.isTvConnected.collectAsState()
-
     val cardWidth = if (isOriginal) 130.dp else 115.dp
     val cardHeight = if (isOriginal) 200.dp else 165.dp
 
@@ -3817,6 +3914,72 @@ fun NetflixPosterCard(
                             fontSize = 8.sp
                         )
                     )
+                }
+            }
+
+            val streamType = remember(channel) { channel.getStreamType().name.replace("_", " ") }
+            val qualityTag = remember(channel.name) {
+                val upperName = channel.name.uppercase()
+                when {
+                    upperName.contains("4K") || upperName.contains("UHD") -> "4K"
+                    upperName.contains("FHD") || upperName.contains("1080") -> "FHD"
+                    upperName.contains("HD") || upperName.contains("720") -> "HD"
+                    upperName.contains("SD") || upperName.contains("480") -> "SD"
+                    else -> ""
+                }
+            }
+
+            val bottomPadding = if (isPlaying) 32.dp else 6.dp
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.9f))
+                        )
+                    )
+                    .align(Alignment.BottomCenter)
+                    .padding(start = 6.dp, end = 6.dp, bottom = bottomPadding + 20.dp, top = 12.dp)
+            ) {
+                Text(
+                    text = channel.name,
+                    color = Color.White,
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 9.sp),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = 6.dp, bottom = bottomPadding),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Surface(
+                    color = Color.Black.copy(alpha = 0.7f),
+                    shape = RoundedCornerShape(4.dp)
+                ) {
+                    Text(
+                        text = streamType,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold),
+                        color = Color.White,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                    )
+                }
+                if (qualityTag.isNotEmpty()) {
+                    Surface(
+                        color = Color(0xFFE50914).copy(alpha = 0.8f),
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Text(
+                            text = qualityTag,
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold),
+                            color = Color.White,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                        )
+                    }
                 }
             }
         }

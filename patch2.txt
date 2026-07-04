@@ -1,0 +1,15 @@
+        // Menu button to reopen EPG overlay if it's hidden
+        if (!showEpgOverlay && !isInPipMode) {
+            IconButton(
+                onClick = { showEpgOverlay = true },
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(16.dp)
+                    .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+            ) {
+                Icon(Icons.Default.Menu, contentDescription = "Open Channels", tint = Color.White)
+            }
+        }
+        } // End of if (!isInPipMode)
+    }
+}

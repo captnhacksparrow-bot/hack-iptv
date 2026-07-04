@@ -1,0 +1,43 @@
+            val streamType = remember(channel) { channel.getStreamType().name.replace("_", " ") }
+            val qualityTag = remember(channel.name) {
+                val upperName = channel.name.uppercase()
+                when {
+                    upperName.contains("4K") || upperName.contains("UHD") -> "4K"
+                    upperName.contains("FHD") || upperName.contains("1080") -> "FHD"
+                    upperName.contains("HD") || upperName.contains("720") -> "HD"
+                    upperName.contains("SD") || upperName.contains("480") -> "SD"
+                    else -> ""
+                }
+            }
+
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Surface(
+                    color = Color.Black.copy(alpha = 0.7f),
+                    shape = RoundedCornerShape(4.dp)
+                ) {
+                    Text(
+                        text = streamType,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold),
+                        color = Color.White,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                    )
+                }
+                if (qualityTag.isNotEmpty()) {
+                    Surface(
+                        color = Color(0xFFE50914).copy(alpha = 0.8f),
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Text(
+                            text = qualityTag,
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold),
+                            color = Color.White,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+            }

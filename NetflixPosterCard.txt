@@ -1,0 +1,296 @@
+@Composable
+fun NetflixPosterCard(
+    channel: ChannelEntity,
+    activeChannel: ChannelEntity?,
+    viewModel: IptvViewModel,
+    isOriginal: Boolean = false
+) {
+    var showInfoDialog by remember { mutableStateOf(false) }
+    val isPlaying = activeChannel?.id == channel.id
+    val scale by animateFloatAsState(targetValue = if (isPlaying) 1.05f else 1f, label = "poster_scale")
+    
+    var vodInfo by remember { mutableStateOf<org.json.JSONObject?>(null) }
+    var isLoadingInfo by remember { mutableStateOf(false) }
+    LaunchedEffect(showInfoDialog) {
+        if (showInfoDialog && vodInfo == null) {
+            isLoadingInfo = true
+            vodInfo = viewModel.getVodOrSeriesInfo(channel.streamUrl)
+            isLoadingInfo = false
+        }
+    }
+
+    val deviceMode by viewModel.deviceMode.collectAsState()
+    val isTvConnected by viewModel.isTvConnected.collectAsState()
+    val cardWidth = if (isOriginal) 130.dp else 115.dp
+    val cardHeight = if (isOriginal) 200.dp else 165.dp
+
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = if (isPlaying) Color(0xFFE50914).copy(alpha = 0.15f) else Color(0xFF1F232F)
+        ),
+        border = BorderStroke(
+            width = if (isPlaying) 2.dp else 1.dp,
+            color = if (isPlaying) Color(0xFFE50914) else Color.White.copy(alpha = 0.15f)
+        ),
+        shape = RoundedCornerShape(10.dp),
+        modifier = Modifier
+            .width(cardWidth)
+            .height(cardHeight)
+            .graphicsLayer(
+                scaleX = scale,
+                scaleY = scale
+            )
+            .clickable { viewModel.selectChannel(channel) }
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            if (!channel.logoUrl.isNullOrEmpty()) {
+                AsyncImage(
+                    model = channel.logoUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(Color(0xFF2C3246), Color(0xFF0F1115))
+                            )
+                        )
+                        .padding(8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = channel.name,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        ),
+                        maxLines = 4,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                }
+            }
+
+            IconButton(
+                onClick = { viewModel.toggleFavorite(channel) },
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .size(28.dp)
+                    .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+            ) {
+                Icon(
+                    imageVector = if (channel.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                    contentDescription = "Favorite",
+                    tint = if (channel.isFavorite) Color.Red else Color.White,
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+
+            IconButton(
+                onClick = { showInfoDialog = true },
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .size(28.dp)
+                    .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Info,
+                    contentDescription = "Info",
+                    tint = Color.White,
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+
+            if (deviceMode == "MOBILE" && isTvConnected) {
+                IconButton(
+                    onClick = {
+                        viewModel.sendRemoteCommand("PLAY_FEED|${channel.name}|${channel.streamUrl}|${channel.logoUrl ?: ""}|${channel.groupTitle}")
+                    },
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(4.dp)
+                        .size(28.dp)
+                        .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Cast,
+                        contentDescription = "Cast to TV",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+            }
+
+            if (isOriginal) {
+                Surface(
+                    color = Color(0xFFE50914),
+                    shape = RoundedCornerShape(bottomEnd = 4.dp),
+                    modifier = Modifier.align(Alignment.TopStart).offset(x = 28.dp)
+                ) {
+                    Text(
+                        text = "N",
+                        color = Color.White,
+                        fontWeight = FontWeight.Black,
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                    )
+                }
+            }
+
+            if (isPlaying) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(30.dp)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, Color(0xFFE50914).copy(alpha = 0.8f))
+                            )
+                        )
+                        .align(Alignment.BottomCenter),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "NOW PLAYING",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            fontSize = 8.sp
+                        )
+                    )
+                }
+            }
+
+            val streamType = remember(channel) { channel.getStreamType().name.replace("_", " ") }
+            val qualityTag = remember(channel.name) {
+                val upperName = channel.name.uppercase()
+                when {
+                    upperName.contains("4K") || upperName.contains("UHD") -> "4K"
+                    upperName.contains("FHD") || upperName.contains("1080") -> "FHD"
+                    upperName.contains("HD") || upperName.contains("720") -> "HD"
+                    upperName.contains("SD") || upperName.contains("480") -> "SD"
+                    else -> ""
+                }
+            }
+
+            val bottomPadding = if (isPlaying) 32.dp else 6.dp
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.9f))
+                        )
+                    )
+                    .align(Alignment.BottomCenter)
+                    .padding(start = 6.dp, end = 6.dp, bottom = bottomPadding + 20.dp, top = 12.dp)
+            ) {
+                Text(
+                    text = channel.name,
+                    color = Color.White,
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 9.sp),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = 6.dp, bottom = bottomPadding),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Surface(
+                    color = Color.Black.copy(alpha = 0.7f),
+                    shape = RoundedCornerShape(4.dp)
+                ) {
+                    Text(
+                        text = streamType,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold),
+                        color = Color.White,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                    )
+                }
+                if (qualityTag.isNotEmpty()) {
+                    Surface(
+                        color = Color(0xFFE50914).copy(alpha = 0.8f),
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Text(
+                            text = qualityTag,
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold),
+                            color = Color.White,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    if (showInfoDialog) {
+        AlertDialog(
+            onDismissRequest = { showInfoDialog = false },
+            title = { Text(text = channel.name) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    if (!channel.logoUrl.isNullOrEmpty()) {
+                        AsyncImage(
+                            model = channel.logoUrl,
+                            contentDescription = null,
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.fillMaxWidth().height(150.dp)
+                        )
+                    }
+                    Text("Genre: ${channel.groupTitle}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                    
+                    if (isLoadingInfo) {
+                        CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+                    } else if (vodInfo != null) {
+                        val info = vodInfo?.optJSONObject("info")
+                        if (info != null) {
+                            val description = info.optString("plot", "").takeIf { it.isNotBlank() } ?: info.optString("description", "No description available.")
+                            val rating = info.optString("rating", "N/A")
+                            val cast = info.optString("cast", "N/A")
+                            val director = info.optString("director", "N/A")
+                            val releaseDate = info.optString("release_date", "N/A")
+                            
+                            Text("Rating: $rating", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                            Text("Release Date: $releaseDate", style = MaterialTheme.typography.bodySmall)
+                            Text("Director: $director", style = MaterialTheme.typography.bodySmall)
+                            Text("Cast: $cast", style = MaterialTheme.typography.bodySmall)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("Plot:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                            Text(description, style = MaterialTheme.typography.bodySmall)
+                        } else {
+                            Text("Additional metadata is not available for this item.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    } else {
+                        Text("Failed to load API info.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { 
+                        showInfoDialog = false
+                        viewModel.selectChannel(channel)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE50914))
+                ) {
+                    Text("Play Now")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showInfoDialog = false }) {
+                    Text("Close")
+                }
+            }
+        )
+    }
+}
