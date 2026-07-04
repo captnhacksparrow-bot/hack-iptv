@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -73,6 +74,7 @@ fun IptvDashboard(
 
     var activeTab by remember { mutableIntStateOf(0) }
     var isUiVisible by remember { mutableStateOf(true) }
+    var isDrawerOpen by remember { mutableStateOf(false) }
     var lastInteractionTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
     
     // Live TV Overlay state
@@ -358,6 +360,54 @@ fun IptvDashboard(
             Column(
                 modifier = Modifier.fillMaxSize()
             ) {
+                // Modern Top Header Row
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(
+                            onClick = { isDrawerOpen = true },
+                            modifier = Modifier.testTag("hamburger_menu_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Menu,
+                                contentDescription = "Open Drawer Menu",
+                                tint = Color.White
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        val currentCategory by viewModel.selectedCategory.collectAsState()
+                        val titleText = when (activeTab) {
+                            0 -> "Live TV • $currentCategory"
+                            1 -> "PPV • $currentCategory"
+                            2 -> "Movies • $currentCategory"
+                            3 -> "TV Shows • $currentCategory"
+                            4 -> "Favorites"
+                            5 -> "EPG Guide"
+                            6 -> "Recordings"
+                            7 -> "Playlists"
+                            8 -> "Profile & Settings"
+                            9 -> "TV Remote"
+                            else -> "Capt'n Hack"
+                        }
+                        Text(
+                            text = titleText,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+                    
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CaptnHackLogo(modifier = Modifier.size(32.dp), showText = false, animate = false)
+                    }
+                }
+
                 // Main content area
                 Box(
                     modifier = Modifier
@@ -365,11 +415,13 @@ fun IptvDashboard(
                         .fillMaxWidth()
                 ) {
                     val isPlaying = isPlayerTab && currentPlayUrl != null
+                    val isLiveTvOrPpv = activeTab == 0 || activeTab == 1
+                    val overlayWidth = if (isPlaying && isLiveTvOrPpv) 450.dp else null
                     Box(
                         modifier = Modifier
                             .fillMaxHeight()
-                            .then(if (isPlaying) Modifier.width(350.dp) else Modifier.fillMaxWidth())
-                            .background(Color(0xFF0F1115).copy(alpha = if (isPlaying) 1.0f else 1.0f))
+                            .then(if (overlayWidth != null) Modifier.width(overlayWidth) else Modifier.fillMaxWidth())
+                            .background(Color(0xFF0F1115))
                             .align(if (isPlaying) Alignment.CenterStart else Alignment.Center)
                     ) {
                         Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
@@ -377,77 +429,318 @@ fun IptvDashboard(
                                 deviceMode = deviceMode ?: "MOBILE",
                                 activeTab = activeTab,
                                 viewModel = viewModel,
-                                onNavigateToPlaylists = { activeTab = 6 }
+                                onNavigateToPlaylists = { activeTab = 7 }
                             )
                         }
                     }
                     
                     // Show overlay only if in Live TV tab (tab 0)
                     if (activeTab == 0) {
-                        LiveTvOverlay(visible = isOverlayVisible)
-                    }
-                }
-                
-                // 1. Bottom Navigation Bar
-                NavigationBar(
-                    containerColor = Color(0xFF131722).copy(alpha = if (isPlaying) 1.0f else 1f),
-                    contentColor = Color.White
-                ) {
-                    val deviceMode by viewModel.deviceMode.collectAsState()
-                    
-                    val navItems = mutableListOf(
-                        "Live TV" to Icons.Default.Tv,
-                        "PPV" to Icons.Default.Event,
-                        "Movies" to Icons.Default.Movie,
-                        "Shows" to Icons.Default.VideoLibrary,
-                        "Favorites" to Icons.Default.Favorite,
-                        "EPG" to Icons.Default.LiveTv,
-                        "Recordings" to Icons.Default.CloudDownload,
-                        "Playlists" to Icons.Default.PlaylistPlay,
-                        "Profile" to Icons.Default.Person
-                    )
-                    
-                    if (deviceMode == "TV") {
-                        navItems.add("Pair" to Icons.Default.SettingsBluetooth)
-                    } else {
-                        navItems.add("Remote" to Icons.Default.SettingsRemote)
-                    }
-
-                    navItems.forEachIndexed { index, (label, icon) ->
-                        val isSelected = activeTab == index
-                        NavigationBarItem(
-                            selected = isSelected,
-                            onClick = { 
-                                activeTab = index 
-                                when (index) {
-                                    0 -> {
-                                        viewModel.selectStreamType(StreamType.LIVE_TV)
-                                        viewModel.selectCategory("All")
-                                    }
-                                    1 -> {
-                                        viewModel.selectStreamType(StreamType.PPV)
-                                        viewModel.selectCategory("All")
-                                    }
-                                    2 -> {
-                                        viewModel.selectStreamType(StreamType.MOVIE)
-                                        viewModel.selectCategory("All")
-                                    }
-                                    3 -> {
-                                        viewModel.selectStreamType(StreamType.TV_SHOW)
-                                        viewModel.selectCategory("All")
-                                    }
-                                    4 -> {
-                                        viewModel.selectCategory("Favorites")
-                                    }
-                                }
-                            },
-                            label = { Text(label, style = MaterialTheme.typography.labelSmall) },
-                            icon = { Icon(icon, contentDescription = label) }
+                        LiveTvOverlay(
+                            visible = isOverlayVisible,
+                            viewModel = viewModel,
+                            onDismiss = { isOverlayVisible = false }
                         )
                     }
                 }
             }
         }
+
+        // 3. Custom Slide-Out Navigation Drawer
+        val drawerWidth = 320.dp
+        val drawerOffset by animateDpAsState(
+            targetValue = if (isDrawerOpen) 0.dp else -drawerWidth,
+            animationSpec = spring(stiffness = Spring.StiffnessLow),
+            label = "DrawerSlide"
+        )
+
+        // Fading background scrim when drawer is open
+        AnimatedVisibility(
+            visible = isDrawerOpen,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.5f))
+                    .clickable { isDrawerOpen = false }
+            )
+        }
+
+        // Sliding Drawer Surface
+        Box(
+            modifier = Modifier
+                .fillMaxHeight()
+                .width(drawerWidth)
+                .offset(x = drawerOffset)
+                .background(Color(0xFF131722))
+                .border(
+                    width = 1.dp, 
+                    color = Color.White.copy(alpha = 0.1f), 
+                    shape = RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp)
+                )
+                .align(Alignment.CenterStart)
+                .clickable(enabled = false) {} // block clicks behind
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
+            ) {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CaptnHackLogo(modifier = Modifier.size(36.dp), showText = false, animate = false)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "CAPTN HACK",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFFFB03A)
+                        )
+                    }
+                    IconButton(onClick = { isDrawerOpen = false }) {
+                        Icon(Icons.Default.Close, contentDescription = "Close Menu", tint = Color.White)
+                    }
+                }
+
+                // Global Search Box
+                var drawerSearchQuery by remember { mutableStateOf("") }
+                val globalSearchChannels by viewModel.globalSearchChannels.collectAsState()
+
+                OutlinedTextField(
+                    value = drawerSearchQuery,
+                    onValueChange = { 
+                        drawerSearchQuery = it 
+                        viewModel.setSearchQuery(it)
+                    },
+                    placeholder = { Text("Search all sections...", color = Color.Gray, style = MaterialTheme.typography.bodyMedium) },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Search",
+                            tint = Color.LightGray
+                        )
+                    },
+                    trailingIcon = {
+                        if (drawerSearchQuery.isNotEmpty()) {
+                            IconButton(onClick = { 
+                                drawerSearchQuery = "" 
+                                viewModel.setSearchQuery("")
+                            }) {
+                                Icon(Icons.Default.Close, contentDescription = "Clear", tint = Color.White)
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        focusedBorderColor = Color(0xFFFFB03A),
+                        unfocusedBorderColor = Color.Gray
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp)
+                        .testTag("drawer_search_bar")
+                )
+
+                // Results list or Tab list
+                if (drawerSearchQuery.isNotEmpty()) {
+                    Text(
+                        text = "SEARCH RESULTS (${globalSearchChannels.size})",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.Gray,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+
+                    if (globalSearchChannels.isEmpty()) {
+                        Box(
+                            modifier = Modifier.fillMaxWidth().weight(1f),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("No matching items found.", color = Color.LightGray, style = MaterialTheme.typography.bodyMedium)
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.weight(1f).fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(globalSearchChannels) { channel ->
+                                val cType = channel.getStreamType()
+                                Card(
+                                    colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.05f)),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            activeTab = when (cType) {
+                                                StreamType.LIVE_TV -> 0
+                                                StreamType.PPV -> 1
+                                                StreamType.MOVIE -> 2
+                                                StreamType.TV_SHOW -> 3
+                                            }
+                                            viewModel.selectStreamType(cType)
+                                            viewModel.selectCategory("All")
+                                            viewModel.selectChannel(channel)
+                                            drawerSearchQuery = ""
+                                            viewModel.setSearchQuery("")
+                                            isDrawerOpen = false
+                                        }
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        if (!channel.logoUrl.isNullOrEmpty()) {
+                                            coil.compose.AsyncImage(
+                                                model = channel.logoUrl,
+                                                contentDescription = null,
+                                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                                modifier = Modifier.size(36.dp).background(Color.Black)
+                                            )
+                                        } else {
+                                            Box(
+                                                modifier = Modifier.size(36.dp).background(Color.White.copy(alpha = 0.1f)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = when (cType) {
+                                                        StreamType.LIVE_TV -> Icons.Default.Tv
+                                                        StreamType.PPV -> Icons.Default.Event
+                                                        StreamType.MOVIE -> Icons.Default.Movie
+                                                        StreamType.TV_SHOW -> Icons.Default.VideoLibrary
+                                                    },
+                                                    contentDescription = null,
+                                                    tint = Color.LightGray,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Column {
+                                            Text(
+                                                text = channel.name,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                text = when (cType) {
+                                                    StreamType.LIVE_TV -> "Live TV • ${channel.groupTitle}"
+                                                    StreamType.PPV -> "PPV Event • ${channel.groupTitle}"
+                                                    StreamType.MOVIE -> "Movie • ${channel.groupTitle}"
+                                                    StreamType.TV_SHOW -> "TV Show • ${channel.groupTitle}"
+                                                },
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = Color.Gray,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        val navItems = mutableListOf(
+                            "Live TV" to Icons.Default.Tv,
+                            "PPV" to Icons.Default.Event,
+                            "Movies" to Icons.Default.Movie,
+                            "TV Shows" to Icons.Default.VideoLibrary,
+                            "Favorites" to Icons.Default.Favorite,
+                            "EPG Guide" to Icons.Default.LiveTv,
+                            "Recordings" to Icons.Default.CloudDownload,
+                            "Playlists" to Icons.Default.PlaylistPlay,
+                            "Profile" to Icons.Default.Person
+                        )
+                        
+                        if (deviceMode == "TV") {
+                            navItems.add("Pair" to Icons.Default.SettingsBluetooth)
+                        } else {
+                            navItems.add("Remote" to Icons.Default.SettingsRemote)
+                        }
+
+                        itemsIndexed(navItems) { index, (label, icon) ->
+                            val isSelected = activeTab == index
+                            NavigationDrawerItem(
+                                label = { Text(label, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                                selected = isSelected,
+                                onClick = {
+                                    activeTab = index
+                                    when (index) {
+                                        0 -> {
+                                            viewModel.selectStreamType(StreamType.LIVE_TV)
+                                            viewModel.selectCategory("All")
+                                        }
+                                        1 -> {
+                                            viewModel.selectStreamType(StreamType.PPV)
+                                            viewModel.selectCategory("All")
+                                        }
+                                        2 -> {
+                                            viewModel.selectStreamType(StreamType.MOVIE)
+                                            viewModel.selectCategory("All")
+                                        }
+                                        3 -> {
+                                            viewModel.selectStreamType(StreamType.TV_SHOW)
+                                            viewModel.selectCategory("All")
+                                        }
+                                        4 -> {
+                                            viewModel.selectCategory("Favorites")
+                                        }
+                                    }
+                                    isDrawerOpen = false
+                                },
+                                icon = { Icon(icon, contentDescription = label) },
+                                colors = NavigationDrawerItemDefaults.colors(
+                                    selectedContainerColor = Color(0xFFFFB03A).copy(alpha = 0.2f),
+                                    unselectedContainerColor = Color.Transparent,
+                                    selectedIconColor = Color(0xFFFFB03A),
+                                    unselectedIconColor = Color.White,
+                                    selectedTextColor = Color(0xFFFFB03A),
+                                    unselectedTextColor = Color.White
+                                ),
+                                modifier = Modifier.fillMaxWidth().height(48.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Hover-detector strip on the far-left edge of the screen
+        Box(
+            modifier = Modifier
+                .fillMaxHeight()
+                .width(20.dp)
+                .align(Alignment.CenterStart)
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val isHoverEnter = event.type == androidx.compose.ui.input.pointer.PointerEventType.Enter || 
+                                               event.type == androidx.compose.ui.input.pointer.PointerEventType.Move
+                            if (isHoverEnter) {
+                                isDrawerOpen = true
+                            }
+                        }
+                    }
+                }
+        )
 
         // If UI is hidden in player tabs, show a menu button to bring it back and a close button
         if (isPlayerTab && currentPlayUrl != null && !isUiVisible) {
@@ -481,6 +774,16 @@ fun IptvDashboard(
                 viewModel = viewModel,
                 onClose = { viewModel.clearSelectedChannel() },
                 onMenuClick = { viewModel.clearSelectedChannel() } // map menu click to close since no inline mode
+            )
+        }
+
+        // 4. Series Episode Selector Dialog
+        val selectedSeriesForEpisodes by viewModel.selectedSeriesForEpisodes.collectAsState()
+        selectedSeriesForEpisodes?.let { seriesChannel ->
+            SeriesEpisodesDialog(
+                channel = seriesChannel,
+                viewModel = viewModel,
+                onDismiss = { viewModel.selectSeriesForEpisodes(null) }
             )
         }
     }
@@ -860,7 +1163,13 @@ fun VodCard(channel: ChannelEntity, activeChannel: ChannelEntity?, viewModel: Ip
                 shape = RoundedCornerShape(12.dp),
                 clip = true
             )
-            .clickable { viewModel.selectChannel(channel) }
+            .clickable {
+                if (channel.getStreamType() == StreamType.TV_SHOW) {
+                    viewModel.selectSeriesForEpisodes(channel)
+                } else {
+                    viewModel.selectChannel(channel)
+                }
+            }
     ) {
         Column {
             Box(modifier = Modifier.fillMaxWidth().height(160.dp)) {
@@ -3043,6 +3352,65 @@ fun ProfileTab(viewModel: IptvViewModel, onNavigateToPlaylists: () -> Unit) {
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
+                    // Global Country Filter Card
+                    val selectedCountry by viewModel.selectedCountry.collectAsState()
+                    val countriesList by viewModel.countries.collectAsState()
+                    var countryExpanded by remember { mutableStateOf(false) }
+
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text(
+                                "Global Country Filter",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Box(modifier = Modifier.fillMaxWidth()) {
+                                OutlinedButton(
+                                    onClick = { countryExpanded = true },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "Selected: $selectedCountry",
+                                            color = Color.White
+                                        )
+                                        Icon(
+                                            imageVector = Icons.Default.ArrowDropDown,
+                                            contentDescription = "Select Country",
+                                            tint = Color.White
+                                        )
+                                    }
+                                }
+
+                                DropdownMenu(
+                                    expanded = countryExpanded,
+                                    onDismissRequest = { countryExpanded = false },
+                                    modifier = Modifier.fillMaxWidth(0.9f).background(Color(0xFF131722))
+                                ) {
+                                    countriesList.forEach { country ->
+                                        DropdownMenuItem(
+                                            text = { Text(country, color = Color.White) },
+                                            onClick = {
+                                                viewModel.selectCountry(country)
+                                                countryExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     // Theme config card
                     Card(
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)),
@@ -3680,20 +4048,98 @@ fun TvControllerTab(viewModel: IptvViewModel) {
 
 
 @Composable
-fun LiveTvOverlay(visible: Boolean) {
+fun LiveTvOverlay(
+    visible: Boolean,
+    viewModel: IptvViewModel,
+    onDismiss: () -> Unit
+) {
+    val channels by viewModel.filteredChannels.collectAsState()
+    val activeChannel by viewModel.selectedChannel.collectAsState()
+
     AnimatedVisibility(
         visible = visible,
-        enter = fadeIn(),
-        exit = fadeOut()
+        enter = slideInHorizontally(initialOffsetX = { -it }) + fadeIn(),
+        exit = slideOutHorizontally(targetOffsetX = { -it }) + fadeOut()
     ) {
         Box(
             modifier = Modifier
                 .fillMaxHeight()
-                .fillMaxWidth(0.25f)
-                .background(Color.Black.copy(alpha = 0.7f))
-                .padding(16.dp)
+                .width(180.dp) // 50% narrower and full-screen height
+                .background(Color(0xE60F1115)) // opaque dark overlay
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            if (event.type == androidx.compose.ui.input.pointer.PointerEventType.Exit) {
+                                onDismiss()
+                            }
+                        }
+                    }
+                }
+                .padding(8.dp)
         ) {
-            Text("EPG / Channels", color = Color.White)
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "Live Channels",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
+                )
+
+                LazyColumn(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    items(channels) { channel ->
+                        val isSelected = activeChannel?.id == channel.id
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.Transparent
+                            ),
+                            border = if (isSelected) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { viewModel.selectChannel(channel) }
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                if (!channel.logoUrl.isNullOrEmpty()) {
+                                    AsyncImage(
+                                        model = channel.logoUrl,
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Fit,
+                                        modifier = Modifier.size(24.dp).clip(RoundedCornerShape(4.dp))
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.Tv,
+                                        contentDescription = null,
+                                        tint = if (isSelected) MaterialTheme.colorScheme.primary else Color.Gray,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                                Text(
+                                    text = channel.name,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else Color.White,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -4217,7 +4663,13 @@ fun NetflixPosterCard(
                 scaleX = scale,
                 scaleY = scale
             )
-            .clickable { viewModel.selectChannel(channel) }
+            .clickable {
+                if (channel.getStreamType() == StreamType.TV_SHOW) {
+                    viewModel.selectSeriesForEpisodes(channel)
+                } else {
+                    viewModel.selectChannel(channel)
+                }
+            }
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             if (!channel.logoUrl.isNullOrEmpty()) {
@@ -4471,3 +4923,302 @@ fun NetflixPosterCard(
         )
     }
 }
+
+@Composable
+fun SeriesEpisodesDialog(
+    channel: ChannelEntity,
+    viewModel: IptvViewModel,
+    onDismiss: () -> Unit
+) {
+    var isLoaded by remember { mutableStateOf(false) }
+    var plot by remember { mutableStateOf("Loading series details...") }
+    var rating by remember { mutableStateOf("N/A") }
+    var seasonsList by remember { mutableStateOf<List<String>>(emptyList()) }
+    var episodesMap by remember { mutableStateOf<Map<String, List<EpisodeItem>>>(emptyMap()) }
+    var selectedSeason by remember { mutableStateOf("1") }
+    
+    // Series unique ID for watched episodes memory
+    val seriesId = remember(channel.streamUrl) {
+        val regex = Regex("^(https?://[^/]+)/(movie|series|live)/([^/]+)/([^/]+)/([^/]+)$")
+        val matchResult = regex.find(channel.streamUrl)
+        if (matchResult != null) {
+            val idWithExt = matchResult.groupValues[5]
+            idWithExt.substringBeforeLast(".")
+        } else {
+            channel.id.toString()
+        }
+    }
+
+    val watchedEpisodesTrigger by viewModel.watchedEpisodesTrigger.collectAsState()
+
+    LaunchedEffect(channel) {
+        try {
+            val infoObj = viewModel.getVodOrSeriesInfo(channel.streamUrl)
+            if (infoObj != null) {
+                val info = infoObj.optJSONObject("info")
+                if (info != null) {
+                    plot = info.optString("plot", "").takeIf { it.isNotBlank() }
+                        ?: info.optString("description", "No plot details available.")
+                    rating = info.optString("rating", "N/A")
+                }
+                
+                val episodesObj = infoObj.optJSONObject("episodes")
+                if (episodesObj != null) {
+                    val tempMap = mutableMapOf<String, List<EpisodeItem>>()
+                    val keys = episodesObj.keys()
+                    while (keys.hasNext()) {
+                        val key = keys.next()
+                        val array = episodesObj.optJSONArray(key)
+                        if (array != null) {
+                            val list = mutableListOf<EpisodeItem>()
+                            for (i in 0 until array.length()) {
+                                val item = array.optJSONObject(i)
+                                if (item != null) {
+                                    list.add(
+                                        EpisodeItem(
+                                            id = item.optString("id", item.optString("episode_id", "")),
+                                            episodeNum = item.optInt("episode_num", i + 1),
+                                            title = item.optString("title", "Episode ${i + 1}"),
+                                            containerExtension = item.optString("container_extension", "mp4")
+                                        )
+                                    )
+                                }
+                            }
+                            tempMap[key] = list.sortedBy { it.episodeNum }
+                        }
+                    }
+                    episodesMap = tempMap
+                    val sortedSeasons = tempMap.keys.sortedBy { it.toIntOrNull() ?: 999 }
+                    seasonsList = sortedSeasons
+                    if (sortedSeasons.isNotEmpty()) {
+                        selectedSeason = sortedSeasons.first()
+                    }
+                }
+            } else {
+                plot = "Failed to load series details. It might be a direct playlist stream."
+            }
+        } catch (e: Exception) {
+            plot = "Error parsing series details: ${e.message}"
+        } finally {
+            isLoaded = true
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = null,
+        confirmButton = {},
+        dismissButton = {},
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier
+            .fillMaxWidth(0.95f)
+            .fillMaxHeight(0.9f),
+        containerColor = Color(0xFF0F1115),
+        shape = RoundedCornerShape(16.dp),
+        text = {
+            Row(
+                modifier = Modifier.fillMaxSize().padding(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(24.dp)
+            ) {
+                // LEFT SIDE: Poster and Metadata
+                Column(
+                    modifier = Modifier.weight(0.35f).fillMaxHeight(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(0.6f)
+                            .clip(RoundedCornerShape(12.dp))
+                    ) {
+                        if (!channel.logoUrl.isNullOrEmpty()) {
+                            AsyncImage(
+                                model = channel.logoUrl,
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier.fillMaxSize().background(Color(0xFF1F232F)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.Movie, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(64.dp))
+                            }
+                        }
+                    }
+                    
+                    Column(
+                        modifier = Modifier.weight(0.4f).verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(channel.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                        Text("Rating: ⭐ $rating", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(plot, style = MaterialTheme.typography.bodySmall, color = Color.LightGray)
+                    }
+                }
+
+                // RIGHT SIDE: Episode Selection
+                Column(
+                    modifier = Modifier.weight(0.65f).fillMaxHeight(),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Seasons & Episodes", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White)
+                        IconButton(onClick = onDismiss) {
+                            Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
+                        }
+                    }
+
+                    if (!isLoaded) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                        }
+                    } else if (seasonsList.isEmpty()) {
+                        // Fallback play direct stream
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                                Text("No episodes list returned by provider.", color = Color.LightGray)
+                                Button(
+                                    onClick = {
+                                        viewModel.selectChannel(channel)
+                                        onDismiss()
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE50914))
+                                ) {
+                                    Icon(Icons.Default.PlayArrow, contentDescription = null)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Play Main Stream")
+                                }
+                            }
+                        }
+                    } else {
+                        // Season Filter chips
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(seasonsList) { season ->
+                                val isSelected = selectedSeason == season
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = { selectedSeason = season },
+                                    label = { Text("Season $season") },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                                        containerColor = Color(0xFF1F232F),
+                                        labelColor = Color.LightGray
+                                    )
+                                )
+                            }
+                        }
+
+                        // Episodes scroll list
+                        val episodes = episodesMap[selectedSeason] ?: emptyList()
+                        LazyColumn(
+                            modifier = Modifier.weight(1f).fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(episodes) { episode ->
+                                val isWatched = viewModel.isEpisodeWatched(seriesId, episode.id)
+                                Card(
+                                    colors = CardDefaults.cardColors(containerColor = Color(0xFF171A21)),
+                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.05f)),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                            modifier = Modifier.weight(0.75f)
+                                        ) {
+                                            IconButton(
+                                                onClick = {
+                                                    // Construct episode stream URL
+                                                    val regex = Regex("^(https?://[^/]+)/(movie|series|live|shows)/([^/]+)/([^/]+)/([^/]+)$")
+                                                    val matchResult = regex.find(channel.streamUrl)
+                                                    val episodeUrl = if (matchResult != null) {
+                                                        val server = matchResult.groupValues[1]
+                                                        val username = matchResult.groupValues[3]
+                                                        val password = matchResult.groupValues[4]
+                                                        "$server/series/$username/$password/${episode.id}.${episode.containerExtension}"
+                                                    } else {
+                                                        channel.streamUrl
+                                                    }
+
+                                                    val playChannel = channel.copy(
+                                                        name = "${channel.name} - S${selectedSeason}E${episode.episodeNum}: ${episode.title}",
+                                                        streamUrl = episodeUrl
+                                                    )
+                                                    viewModel.selectChannel(playChannel)
+                                                    viewModel.markEpisodeWatched(seriesId, episode.id, true)
+                                                    onDismiss()
+                                                },
+                                                modifier = Modifier.background(Color(0xFFE50914), CircleShape).size(36.dp)
+                                            ) {
+                                                Icon(Icons.Default.PlayArrow, contentDescription = "Play", tint = Color.White, modifier = Modifier.size(20.dp))
+                                            }
+
+                                            Column {
+                                                Text(
+                                                    text = "Episode ${episode.episodeNum}",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.White
+                                                )
+                                                Text(
+                                                    text = episode.title,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = Color.Gray,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                        }
+
+                                        // Watched Checkbox Toggle
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                            modifier = Modifier.clickable {
+                                                viewModel.toggleEpisodeWatched(seriesId, episode.id)
+                                            }
+                                        ) {
+                                            Checkbox(
+                                                checked = isWatched,
+                                                onCheckedChange = { viewModel.markEpisodeWatched(seriesId, episode.id, it) },
+                                                colors = CheckboxDefaults.colors(
+                                                    checkedColor = MaterialTheme.colorScheme.primary,
+                                                    uncheckedColor = Color.Gray
+                                                )
+                                            )
+                                            Text("Watched", style = MaterialTheme.typography.labelSmall, color = if (isWatched) MaterialTheme.colorScheme.primary else Color.Gray)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    )
+}
+
+data class EpisodeItem(
+    val id: String,
+    val episodeNum: Int,
+    val title: String,
+    val containerExtension: String
+)

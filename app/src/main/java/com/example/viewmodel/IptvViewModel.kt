@@ -122,6 +122,21 @@ class IptvViewModel(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
+    // Global Search Channels (searches all channels/VODs across all sections)
+    val globalSearchChannels: StateFlow<List<ChannelEntity>> = combine(
+        allChannels,
+        _searchQuery
+    ) { allChans, query ->
+        if (query.isBlank()) {
+            emptyList()
+        } else {
+            allChans.filter { 
+                it.name.contains(query, ignoreCase = true) || 
+                it.groupTitle.contains(query, ignoreCase = true) 
+            }
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     // Stream Type Selection State (Live TV, Movie, TV Show)
     private val _selectedStreamType = MutableStateFlow(StreamType.LIVE_TV)
     val selectedStreamType: StateFlow<StreamType> = _selectedStreamType.asStateFlow()
@@ -295,6 +310,13 @@ class IptvViewModel(
     // Active Playback State
     private val _selectedChannel = MutableStateFlow<ChannelEntity?>(null)
     val selectedChannel: StateFlow<ChannelEntity?> = _selectedChannel.asStateFlow()
+
+    private val _selectedSeriesForEpisodes = MutableStateFlow<ChannelEntity?>(null)
+    val selectedSeriesForEpisodes: StateFlow<ChannelEntity?> = _selectedSeriesForEpisodes.asStateFlow()
+
+    fun selectSeriesForEpisodes(channel: ChannelEntity?) {
+        _selectedSeriesForEpisodes.value = channel
+    }
 
     private val _activePlayUrl = MutableStateFlow<String?>(null)
     val activePlayUrl: StateFlow<String?> = _activePlayUrl.asStateFlow()
@@ -1098,6 +1120,37 @@ class IptvViewModel(
             ex.printStackTrace()
         }
         return "127.0.0.1"
+    }
+
+    // Persist watched state for series episodes
+    private val _watchedEpisodesTrigger = MutableStateFlow(0)
+    val watchedEpisodesTrigger: StateFlow<Int> = _watchedEpisodesTrigger.asStateFlow()
+
+    fun isEpisodeWatched(seriesId: String, episodeId: String): Boolean {
+        val watchedSet = prefs.getStringSet("watched_${seriesId}", emptySet()) ?: emptySet()
+        return watchedSet.contains(episodeId)
+    }
+
+    fun toggleEpisodeWatched(seriesId: String, episodeId: String) {
+        val watchedSet = prefs.getStringSet("watched_${seriesId}", emptySet())?.toMutableSet() ?: mutableSetOf()
+        if (watchedSet.contains(episodeId)) {
+            watchedSet.remove(episodeId)
+        } else {
+            watchedSet.add(episodeId)
+        }
+        prefs.edit().putStringSet("watched_${seriesId}", watchedSet).apply()
+        _watchedEpisodesTrigger.value += 1
+    }
+
+    fun markEpisodeWatched(seriesId: String, episodeId: String, watched: Boolean) {
+        val watchedSet = prefs.getStringSet("watched_${seriesId}", emptySet())?.toMutableSet() ?: mutableSetOf()
+        if (watched) {
+            watchedSet.add(episodeId)
+        } else {
+            watchedSet.remove(episodeId)
+        }
+        prefs.edit().putStringSet("watched_${seriesId}", watchedSet).apply()
+        _watchedEpisodesTrigger.value += 1
     }
 
     override fun onCleared() {

@@ -101,24 +101,42 @@ fun VideoPlayer(
     // Re-initialize player or change source when videoUrl changes
     LaunchedEffect(videoUrl) {
         if (exoPlayer == null) {
-            val player = ExoPlayer.Builder(context).build().apply {
-                playWhenReady = true
-                repeatMode = Player.REPEAT_MODE_OFF
-                addListener(object : Player.Listener {
-                    override fun onIsPlayingChanged(isPlaying: Boolean) {
-                        if (isPlaying) {
-                            currentOnPlaybackStarted()
+            val httpDataSourceFactory = androidx.media3.datasource.DefaultHttpDataSource.Factory()
+                .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+                .setAllowCrossProtocolRedirects(true)
+            val dataSourceFactory = androidx.media3.datasource.DefaultDataSource.Factory(context, httpDataSourceFactory)
+            val mediaSourceFactory = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(context)
+                .setDataSourceFactory(dataSourceFactory)
+
+            val player = ExoPlayer.Builder(context)
+                .setMediaSourceFactory(mediaSourceFactory)
+                .build().apply {
+                    playWhenReady = true
+                    repeatMode = Player.REPEAT_MODE_OFF
+                    addListener(object : Player.Listener {
+                        override fun onIsPlayingChanged(isPlaying: Boolean) {
+                            if (isPlaying) {
+                                currentOnPlaybackStarted()
+                            }
                         }
-                    }
-                })
-            }
+                    })
+                }
             exoPlayer = player
         }
 
         exoPlayer?.let { player ->
             player.stop()
             player.clearMediaItems()
-            val mediaItem = MediaItem.fromUri(videoUrl)
+            
+            // Format videoUrl to play files correctly
+            val parsedUri = android.net.Uri.parse(videoUrl)
+            val finalUri = if (parsedUri.scheme == null) {
+                android.net.Uri.fromFile(java.io.File(videoUrl))
+            } else {
+                parsedUri
+            }
+            
+            val mediaItem = MediaItem.fromUri(finalUri)
             player.setMediaItem(mediaItem)
             player.prepare()
             player.play()
