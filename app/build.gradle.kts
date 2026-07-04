@@ -50,6 +50,8 @@ android {
       val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
       if (file(keystorePath).exists()) {
         signingConfig = signingConfigs.getByName("release")
+      } else {
+        signingConfig = signingConfigs.getByName("debugConfig")
       }
     }
     debug {
@@ -111,8 +113,8 @@ dependencies {
   implementation(libs.media3.exoplayer.hls)
   implementation(libs.media3.ui)
   implementation(libs.converter.moshi)
-  implementation(libs.firebase.ai)
-  implementation(libs.firebase.appcheck.recaptcha)
+  // implementation(libs.firebase.ai)
+  // implementation(libs.firebase.appcheck.recaptcha)
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)
   implementation(libs.logging.interceptor)
@@ -149,9 +151,13 @@ tasks.register<Copy>("copyToVisibleFolder") {
     }
     from(layout.buildDirectory.dir("outputs/apk/release")) {
         include("app-release.apk")
+        include("app-release-unsigned.apk")
+        rename("app-release-unsigned.apk", "app-release.apk")
     }
     from(layout.buildDirectory.dir("outputs/bundle/release")) {
         include("app-release.aab")
+        include("app-release-unsigned.aab")
+        rename("app-release-unsigned.aab", "app-release.aab")
     }
     into(rootProject.layout.projectDirectory.dir("App_Build_Files"))
 }
@@ -165,9 +171,13 @@ tasks.register<Copy>("copyToBuildOutputs") {
     }
     from(layout.buildDirectory.dir("outputs/apk/release")) {
         include("app-release.apk")
+        include("app-release-unsigned.apk")
+        rename("app-release-unsigned.apk", "app-release.apk")
     }
     from(layout.buildDirectory.dir("outputs/bundle/release")) {
         include("app-release.aab")
+        include("app-release-unsigned.aab")
+        rename("app-release-unsigned.aab", "app-release.aab")
     }
     into(rootProject.layout.projectDirectory.dir(".build-outputs"))
 }

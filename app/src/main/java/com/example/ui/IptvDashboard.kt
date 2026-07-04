@@ -76,10 +76,10 @@ fun IptvDashboard(
     // Live TV Overlay state
     var isOverlayVisible by remember { mutableStateOf(true) }
     
-    // Auto-dismiss overlay after 5 seconds of inactivity
+    // Auto-dismiss overlay after 8 seconds of inactivity
     LaunchedEffect(isOverlayVisible) {
         if (isOverlayVisible) {
-            kotlinx.coroutines.delay(5000)
+            kotlinx.coroutines.delay(8000)
             isOverlayVisible = false
         }
     }
@@ -87,10 +87,10 @@ fun IptvDashboard(
     val isPlayerTab = activeTab in 0..3
     val isPlaying = isPlayerTab && activePlayUrl != null
     
-    // Auto-dismiss main UI menu after 5 seconds when a video is playing in player tabs
+    // Auto-dismiss main UI menu after 8 seconds when a video is playing in player tabs
     LaunchedEffect(isUiVisible, activePlayUrl, activeTab) {
         if (isUiVisible && activePlayUrl != null && isPlayerTab) {
-            kotlinx.coroutines.delay(5000)
+            kotlinx.coroutines.delay(8000)
             isUiVisible = false
         }
     }
@@ -102,7 +102,7 @@ fun IptvDashboard(
 
     LaunchedEffect(showMobileControls, showMobileOverlayMenu) {
         if (showMobileControls && !showMobileOverlayMenu) {
-            kotlinx.coroutines.delay(3500)
+            kotlinx.coroutines.delay(8000)
             showMobileControls = false
         }
     }
@@ -459,10 +459,10 @@ fun FullScreenPlayerOverlay(
 ) {
     var showEpgOverlay by remember { mutableStateOf(true) }
 
-    // Auto-dismiss EPG overlay after 5 seconds of inactivity
+    // Auto-dismiss EPG overlay after 8 seconds of inactivity
     LaunchedEffect(showEpgOverlay) {
         if (showEpgOverlay) {
-            kotlinx.coroutines.delay(5000)
+            kotlinx.coroutines.delay(8000)
             showEpgOverlay = false
         }
     }
@@ -943,10 +943,10 @@ fun ChannelsExplorerTab(viewModel: IptvViewModel) {
 
     var showCategorySidebarMobile by remember { mutableStateOf(false) }
 
-    // Auto-dismiss sidebar after a few seconds of inactivity
+    // Auto-dismiss sidebar after 8 seconds of inactivity
     LaunchedEffect(showCategorySidebarMobile) {
         if (showCategorySidebarMobile) {
-            kotlinx.coroutines.delay(5000)
+            kotlinx.coroutines.delay(8000)
             showCategorySidebarMobile = false
         }
     }
