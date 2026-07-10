@@ -1695,10 +1695,10 @@ fun TabContent(
 ) {
     Crossfade(targetState = activeTab, label = "TabTransition") { tab ->
         when (tab) {
-            0 -> ChannelsExplorerTab(viewModel = viewModel)
-            1 -> ChannelsExplorerTab(viewModel = viewModel)
-            2 -> ChannelsExplorerTab(viewModel = viewModel)
-            3 -> ChannelsExplorerTab(viewModel = viewModel)
+            0 -> ChannelsExplorerTab(viewModel = viewModel, deviceMode = deviceMode)
+            1 -> ChannelsExplorerTab(viewModel = viewModel, deviceMode = deviceMode)
+            2 -> ChannelsExplorerTab(viewModel = viewModel, deviceMode = deviceMode)
+            3 -> ChannelsExplorerTab(viewModel = viewModel, deviceMode = deviceMode)
             4 -> FavoritesTab(viewModel = viewModel)
             5 -> EpgGuideTab(viewModel = viewModel)
             6 -> RecordingsTab(viewModel = viewModel)
@@ -2089,7 +2089,7 @@ fun VodCard(channel: ChannelEntity, activeChannel: ChannelEntity?, viewModel: Ip
 }
 
 @Composable
-fun ChannelsExplorerTab(viewModel: IptvViewModel) {
+fun ChannelsExplorerTab(viewModel: IptvViewModel, deviceMode: String? = null) {
     val categories by viewModel.categories.collectAsState()
     val selectedCategory by viewModel.selectedCategory.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
@@ -2097,8 +2097,33 @@ fun ChannelsExplorerTab(viewModel: IptvViewModel) {
     val activeChannel by viewModel.selectedChannel.collectAsState()
     val categoryCounts by viewModel.categoryCounts.collectAsState()
     
-    Box(modifier = Modifier.fillMaxSize()) {
-        Column(modifier = Modifier.fillMaxSize()) {
+    val isTv = deviceMode == "TV"
+    var showMobileSidebar by remember { mutableStateOf(false) }
+    
+    Row(modifier = Modifier.fillMaxSize()) {
+        if (isTv || showMobileSidebar) {
+            CategorySidebar(
+                categories = categories,
+                selectedCategory = selectedCategory,
+                onCategorySelected = { cat ->
+                    viewModel.selectCategory(cat)
+                    if (!isTv) {
+                        showMobileSidebar = false
+                    }
+                },
+                categoryCounts = categoryCounts,
+                modifier = Modifier
+                    .width(260.dp)
+                    .fillMaxHeight()
+            )
+        }
+        
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                .padding(horizontal = 8.dp)
+        ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -2106,7 +2131,20 @@ fun ChannelsExplorerTab(viewModel: IptvViewModel) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                if (selectedCategory != "All") {
+                if (!isTv) {
+                    IconButton(
+                        onClick = { showMobileSidebar = !showMobileSidebar },
+                        modifier = Modifier.testTag("mobile_category_toggle")
+                    ) {
+                        Icon(
+                            imageVector = if (showMobileSidebar) Icons.Default.MenuOpen else Icons.Default.Folder,
+                            contentDescription = "Categories",
+                            tint = if (showMobileSidebar) Color(0xFFFFB03A) else Color.White
+                        )
+                    }
+                }
+                
+                if (selectedCategory != "All" && !isTv) {
                     IconButton(onClick = { viewModel.selectCategory("All") }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
                     }
@@ -2118,6 +2156,14 @@ fun ChannelsExplorerTab(viewModel: IptvViewModel) {
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)
+                    )
+                } else if (isTv) {
+                    Text(
+                        text = if (selectedCategory == "All") "All Channels" else selectedCategory,
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
+                        color = Color(0xFFFFB03A),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
 

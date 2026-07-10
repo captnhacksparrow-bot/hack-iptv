@@ -1,4 +1,5 @@
 import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
+import java.util.Base64
 
 plugins {
   alias(libs.plugins.android.application)
@@ -17,8 +18,8 @@ android {
     applicationId = "com.aistudio.captnhackstreams.iptv"
     minSdk = 24
     targetSdk = 34
-    versionCode = 15
-    versionName = "15.0"
+    versionCode = 16
+    versionName = "16.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -30,6 +31,40 @@ android {
       keyAlias = "androiddebugkey"
       keyPassword = "android"
     }
+
+    // Load release signing properties from project properties or environment
+    val ksStorePass = (project.findProperty("STORE_PASSWORD") as? String) ?: System.getenv("STORE_PASSWORD") ?: "changeit"
+    val ksAlias = (project.findProperty("KEY_ALIAS") as? String) ?: System.getenv("KEY_ALIAS") ?: "upload"
+    val ksKeyPass = (project.findProperty("KEY_PASSWORD") as? String) ?: System.getenv("KEY_PASSWORD") ?: "changeit"
+
+    // Decode base64 keystore if present to prevent UTF-8 corruption from file sync daemon
+    val b64File = file("${rootDir}/my-upload-key.jks.base64")
+    val decodedKeystoreFile = if (b64File.exists()) {
+      val tempKeystore = file("/tmp/my-upload-key-decoded.jks")
+      val base64Bytes = b64File.readText().trim()
+      val decodedBytes = Base64.getDecoder().decode(base64Bytes)
+      tempKeystore.writeBytes(decodedBytes)
+      tempKeystore
+    } else {
+      null
+    }
+
+    val ksPath = (project.findProperty("KEYSTORE_PATH") as? String) ?: System.getenv("KEYSTORE_PATH") ?: decodedKeystoreFile?.absolutePath ?: "my-upload-key.jks"
+
+    create("releaseConfig") {
+      val keystoreFile = if (ksPath.startsWith("/")) file(ksPath) else file("${rootDir}/$ksPath")
+      if (keystoreFile.exists()) {
+        storeFile = keystoreFile
+        storePassword = ksStorePass
+        keyAlias = ksAlias
+        keyPassword = ksKeyPass
+      } else {
+        storeFile = file("${rootDir}/debug.keystore")
+        storePassword = "android"
+        keyAlias = "androiddebugkey"
+        keyPassword = "android"
+      }
+    }
   }
 
   buildTypes {
@@ -37,7 +72,7 @@ android {
       isCrunchPngs = false
       isMinifyEnabled = false
       isShrinkResources = false
-      signingConfig = signingConfigs.getByName("debugConfig")
+      signingConfig = signingConfigs.getByName("releaseConfig")
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "${rootDir}/proguard-rules.pro")
     }
     debug {
@@ -137,13 +172,9 @@ tasks.register<Copy>("copyToVisibleFolder") {
     }
     from(layout.buildDirectory.dir("outputs/apk/release")) {
         include("app-release.apk")
-        include("app-release-unsigned.apk")
-        rename("app-release-unsigned.apk", "app-release.apk")
     }
     from(layout.buildDirectory.dir("outputs/bundle/release")) {
         include("app-release.aab")
-        include("app-release-unsigned.aab")
-        rename("app-release-unsigned.aab", "app-release.aab")
     }
     into(rootProject.layout.projectDirectory.dir("App_Build_Files"))
 }
@@ -157,13 +188,9 @@ tasks.register<Copy>("copyToBuildOutputs") {
     }
     from(layout.buildDirectory.dir("outputs/apk/release")) {
         include("app-release.apk")
-        include("app-release-unsigned.apk")
-        rename("app-release-unsigned.apk", "app-release.apk")
     }
     from(layout.buildDirectory.dir("outputs/bundle/release")) {
         include("app-release.aab")
-        include("app-release-unsigned.aab")
-        rename("app-release-unsigned.aab", "app-release.aab")
     }
     into(rootProject.layout.projectDirectory.dir(".build-outputs"))
 }
