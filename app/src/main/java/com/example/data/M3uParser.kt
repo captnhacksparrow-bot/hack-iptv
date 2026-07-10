@@ -93,12 +93,13 @@ object M3uParser {
             } else if (trimmed.isNotEmpty() && !trimmed.startsWith("#")) {
                 // This line is the stream URL
                 if (currentExtInf != null) {
+                    val organizedGroup = MediaOrganizerParser.organizeCategory(currentExtInf.groupTitle, currentExtInf.name, trimmed)
                     channels.add(
                         ChannelEntity(
                             playlistId = playlistId,
                             name = currentExtInf.name,
                             logoUrl = currentExtInf.logoUrl,
-                            groupTitle = currentExtInf.groupTitle,
+                            groupTitle = organizedGroup,
                             streamUrl = trimmed,
                             tvgId = currentExtInf.tvgId,
                             tvgName = currentExtInf.tvgName,
@@ -112,12 +113,13 @@ object M3uParser {
                     // Fallback if no #EXTINF preceded the URL
                     val nameFromUrl = trimmed.substringAfterLast("/").substringBefore("?")
                     val detectedCry = detectCountry(nameFromUrl, "Uncategorized", null)
+                    val organizedGroup = MediaOrganizerParser.organizeCategory("Uncategorized", nameFromUrl, trimmed)
                     channels.add(
                         ChannelEntity(
                             playlistId = playlistId,
                             name = if (nameFromUrl.isNotEmpty()) nameFromUrl else "Stream ${channels.size + 1}",
                             logoUrl = null,
-                            groupTitle = "Uncategorized",
+                            groupTitle = organizedGroup,
                             streamUrl = trimmed,
                             tvgId = null,
                             tvgName = null,

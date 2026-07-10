@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -98,6 +99,24 @@ class IptvViewModel(
     private val _pairingCode = MutableStateFlow<String>("")
     val pairingCode: StateFlow<String> = _pairingCode.asStateFlow()
 
+    // Local Wi-Fi Streaming Server states (MOCKED / DEPRECATED)
+    val isLocalCasting: StateFlow<Boolean> = MutableStateFlow(false).asStateFlow()
+    val isCastingPlaying: StateFlow<Boolean> = MutableStateFlow(false).asStateFlow()
+    val localServerIp: StateFlow<String> = MutableStateFlow("127.0.0.1").asStateFlow()
+    val localServerPort = 8082
+
+    fun startLocalCasting() {
+        // HTTP casting removed as requested. Standard screen casting is now used.
+    }
+
+    fun stopLocalCasting() {
+        // HTTP casting removed as requested. Standard screen casting is now used.
+    }
+
+    fun toggleCastingPlay() {
+        // HTTP casting removed as requested. Standard screen casting is now used.
+    }
+
     // Playlists UI State
     val playlists: StateFlow<List<PlaylistEntity>> = repository.playlists
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -155,22 +174,24 @@ class IptvViewModel(
         repository.allChannels,
         _selectedPlaylistId
     ) { allChans, playlistId ->
-        val filteredByPlaylist = if (playlistId != null) {
-            allChans.filter { it.playlistId == playlistId }
-        } else {
-            val firstPlaylistId = allChans.firstOrNull()?.playlistId
-            if (firstPlaylistId != null) {
-                allChans.filter { it.playlistId == firstPlaylistId }
+        withContext(Dispatchers.Default) {
+            val filteredByPlaylist = if (playlistId != null) {
+                allChans.filter { it.playlistId == playlistId }
             } else {
-                emptyList()
+                val firstPlaylistId = allChans.firstOrNull()?.playlistId
+                if (firstPlaylistId != null) {
+                    allChans.filter { it.playlistId == firstPlaylistId }
+                } else {
+                    emptyList()
+                }
             }
+            val list = filteredByPlaylist
+                .map { it.country }
+                .distinct()
+                .filter { it.isNotEmpty() }
+                .sorted()
+            listOf("All") + list
         }
-        val list = filteredByPlaylist
-            .map { it.country }
-            .distinct()
-            .filter { it.isNotEmpty() }
-            .sorted()
-        listOf("All") + list
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), listOf("All"))
 
     // Dynamic combined list of Categories (Favorites, All, + parsed groups) filtered by StreamType, Selected Playlist, and Country
@@ -181,28 +202,30 @@ class IptvViewModel(
         _selectedPlaylistId,
         _selectedCountry
     ) { allChans, streamType, playlistId, country ->
-        val filteredByPlaylist = if (playlistId != null) {
-            allChans.filter { it.playlistId == playlistId }
-        } else {
-            val firstPlaylistId = allChans.firstOrNull()?.playlistId
-            if (firstPlaylistId != null) {
-                allChans.filter { it.playlistId == firstPlaylistId }
+        withContext(Dispatchers.Default) {
+            val filteredByPlaylist = if (playlistId != null) {
+                allChans.filter { it.playlistId == playlistId }
             } else {
-                emptyList()
+                val firstPlaylistId = allChans.firstOrNull()?.playlistId
+                if (firstPlaylistId != null) {
+                    allChans.filter { it.playlistId == firstPlaylistId }
+                } else {
+                    emptyList()
+                }
             }
+            val filteredByCountry = if (country != "All") {
+                filteredByPlaylist.filter { it.country.equals(country, ignoreCase = true) }
+            } else {
+                filteredByPlaylist
+            }
+            val groups = filteredByCountry
+                .filter { it.getStreamType() == streamType }
+                .map { it.groupTitle }
+                .distinct()
+                .filter { it.isNotEmpty() }
+                .sorted()
+            listOf("All", "Favorites") + groups
         }
-        val filteredByCountry = if (country != "All") {
-            filteredByPlaylist.filter { it.country.equals(country, ignoreCase = true) }
-        } else {
-            filteredByPlaylist
-        }
-        val groups = filteredByCountry
-            .filter { it.getStreamType() == streamType }
-            .map { it.groupTitle }
-            .distinct()
-            .filter { it.isNotEmpty() }
-            .sorted()
-        listOf("All", "Favorites") + groups
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), listOf("All", "Favorites"))
 
     // Dynamic counts of channels for each Category
@@ -213,34 +236,36 @@ class IptvViewModel(
         _selectedPlaylistId,
         _selectedCountry
     ) { allChans, streamType, playlistId, country ->
-        val filteredByPlaylist = if (playlistId != null) {
-            allChans.filter { it.playlistId == playlistId }
-        } else {
-            val firstPlaylistId = allChans.firstOrNull()?.playlistId
-            if (firstPlaylistId != null) {
-                allChans.filter { it.playlistId == firstPlaylistId }
+        withContext(Dispatchers.Default) {
+            val filteredByPlaylist = if (playlistId != null) {
+                allChans.filter { it.playlistId == playlistId }
             } else {
-                emptyList()
+                val firstPlaylistId = allChans.firstOrNull()?.playlistId
+                if (firstPlaylistId != null) {
+                    allChans.filter { it.playlistId == firstPlaylistId }
+                } else {
+                    emptyList()
+                }
             }
-        }
-        val filteredByCountry = if (country != "All") {
-            filteredByPlaylist.filter { it.country.equals(country, ignoreCase = true) }
-        } else {
-            filteredByPlaylist
-        }
-        val filteredByType = filteredByCountry.filter { it.getStreamType() == streamType }
-        
-        val counts = mutableMapOf<String, Int>()
-        counts["All"] = filteredByType.size
-        counts["Favorites"] = filteredByType.count { it.isFavorite }
-        
-        filteredByType.forEach { channel ->
-            val group = channel.groupTitle
-            if (group.isNotEmpty()) {
-                counts[group] = (counts[group] ?: 0) + 1
+            val filteredByCountry = if (country != "All") {
+                filteredByPlaylist.filter { it.country.equals(country, ignoreCase = true) }
+            } else {
+                filteredByPlaylist
             }
+            val filteredByType = filteredByCountry.filter { it.getStreamType() == streamType }
+            
+            val counts = mutableMapOf<String, Int>()
+            counts["All"] = filteredByType.size
+            counts["Favorites"] = filteredByType.count { it.isFavorite }
+            
+            filteredByType.forEach { channel ->
+                val group = channel.groupTitle
+                if (group.isNotEmpty()) {
+                    counts[group] = (counts[group] ?: 0) + 1
+                }
+            }
+            counts
         }
-        counts
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     data class FilterState(
@@ -251,9 +276,10 @@ class IptvViewModel(
         val country: String
     )
 
+    @OptIn(FlowPreview::class)
     private val filterStateFlow: Flow<FilterState> = combine(
         _selectedCategory,
-        _searchQuery,
+        _searchQuery.debounce(200),
         _selectedStreamType,
         _selectedPlaylistId,
         _selectedCountry
@@ -267,44 +293,46 @@ class IptvViewModel(
         repository.allChannels,
         filterStateFlow
     ) { allChans, filterState ->
-        val playlistId = filterState.playlistId
-        val country = filterState.country
-        val category = filterState.category
-        val streamType = filterState.streamType
-        val query = filterState.query
+        withContext(Dispatchers.Default) {
+            val playlistId = filterState.playlistId
+            val country = filterState.country
+            val category = filterState.category
+            val streamType = filterState.streamType
+            val query = filterState.query
 
-        var list = if (playlistId != null) {
-            allChans.filter { it.playlistId == playlistId }
-        } else {
-            val firstPlaylistId = allChans.firstOrNull()?.playlistId
-            if (firstPlaylistId != null) {
-                allChans.filter { it.playlistId == firstPlaylistId }
+            var list = if (playlistId != null) {
+                allChans.filter { it.playlistId == playlistId }
             } else {
-                emptyList()
+                val firstPlaylistId = allChans.firstOrNull()?.playlistId
+                if (firstPlaylistId != null) {
+                    allChans.filter { it.playlistId == firstPlaylistId }
+                } else {
+                    emptyList()
+                }
             }
+            
+            // Filter by country
+            if (country != "All") {
+                list = list.filter { it.country.equals(country, ignoreCase = true) }
+            }
+            
+            // Filter by category
+            list = when (category) {
+                "All" -> list
+                "Favorites" -> list.filter { it.isFavorite }
+                else -> list.filter { it.groupTitle == category }
+            }
+            
+            // Filter by stream type
+            list = list.filter { it.getStreamType() == streamType }
+            
+            // Filter by search query
+            if (query.isNotEmpty()) {
+                list = list.filter { it.name.contains(query, ignoreCase = true) }
+            }
+            
+            list
         }
-        
-        // Filter by country
-        if (country != "All") {
-            list = list.filter { it.country.equals(country, ignoreCase = true) }
-        }
-        
-        // Filter by category
-        list = when (category) {
-            "All" -> list
-            "Favorites" -> list.filter { it.isFavorite }
-            else -> list.filter { it.groupTitle == category }
-        }
-        
-        // Filter by stream type
-        list = list.filter { it.getStreamType() == streamType }
-        
-        // Filter by search query
-        if (query.isNotEmpty()) {
-            list = list.filter { it.name.contains(query, ignoreCase = true) }
-        }
-        
-        list
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // Active Playback State
@@ -1156,6 +1184,7 @@ class IptvViewModel(
     override fun onCleared() {
         super.onCleared()
         stopRemoteServer()
+        stopLocalCasting()
     }
 
     // Factory Class

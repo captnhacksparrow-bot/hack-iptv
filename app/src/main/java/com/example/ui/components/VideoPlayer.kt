@@ -8,6 +8,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.RadioButtonChecked
+import androidx.compose.material.icons.filled.Cast
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -40,7 +41,8 @@ fun VideoPlayer(
     modifier: Modifier = Modifier,
     isLiveStream: Boolean = false,
     remoteCommands: SharedFlow<String>? = null,
-    onPlaybackStarted: () -> Unit = {}
+    onPlaybackStarted: () -> Unit = {},
+    onCastClick: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     var exoPlayer by remember { mutableStateOf<ExoPlayer?>(null) }
@@ -244,6 +246,8 @@ fun VideoPlayer(
                         modifier = Modifier.size(20.dp)
                     )
                 }
+
+
             }
         }
         } // Close if (!isInPipMode)

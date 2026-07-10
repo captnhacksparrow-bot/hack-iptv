@@ -17,28 +17,13 @@ android {
     applicationId = "com.aistudio.captnhackstreams.iptv"
     minSdk = 24
     targetSdk = 34
-    versionCode = 21
-    versionName = "21.0"
+    versionCode = 15
+    versionName = "15.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
 
   signingConfigs {
-    create("release") {
-      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "my-upload-key.jks"
-      val keystoreFile = if (file(keystorePath).isAbsolute) {
-        file(keystorePath)
-      } else {
-        val rootFile = file("${rootDir}/$keystorePath")
-        if (rootFile.exists()) rootFile else file(keystorePath)
-      }
-      if (keystoreFile.exists()) {
-        storeFile = keystoreFile
-        storePassword = System.getenv("STORE_PASSWORD") ?: "changeit"
-        keyAlias = System.getenv("KEY_ALIAS") ?: "upload"
-        keyPassword = System.getenv("KEY_PASSWORD") ?: "changeit"
-      }
-    }
     create("debugConfig") {
       storeFile = file("${rootDir}/debug.keystore")
       storePassword = "android"
@@ -49,22 +34,11 @@ android {
 
   buildTypes {
     release {
-      isCrunchPngs = true
-      isMinifyEnabled = true
-      isShrinkResources = true
+      isCrunchPngs = false
+      isMinifyEnabled = false
+      isShrinkResources = false
+      signingConfig = signingConfigs.getByName("debugConfig")
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "${rootDir}/proguard-rules.pro")
-      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "my-upload-key.jks"
-      val keystoreFile = if (file(keystorePath).isAbsolute) {
-        file(keystorePath)
-      } else {
-        val rootFile = file("${rootDir}/$keystorePath")
-        if (rootFile.exists()) rootFile else file(keystorePath)
-      }
-      if (keystoreFile.exists()) {
-        signingConfig = signingConfigs.getByName("release")
-      } else {
-        signingConfig = signingConfigs.getByName("debugConfig")
-      }
     }
     debug {
       signingConfig = signingConfigs.getByName("debugConfig")

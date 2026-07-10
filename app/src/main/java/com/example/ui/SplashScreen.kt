@@ -5,10 +5,18 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -24,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalUriHandler
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -32,6 +41,7 @@ fun SplashScreen(
     onSplashFinished: () -> Unit
 ) {
     var startExitAnimation by remember { mutableStateOf(false) }
+    val uriHandler = LocalUriHandler.current
 
     // Animations setup
     val transitionState = rememberInfiniteTransition(label = "SplashRotation")
@@ -45,9 +55,9 @@ fun SplashScreen(
     // Sweep position for golden shine effect (static to prevent CPU lag on lightweight emulators)
     val shineSweep = 150f
 
-    // App title scale & fade-in animation
-    val appTitleAlpha = remember { Animatable(0f) }
-    val appTitleScale = remember { Animatable(0.7f) }
+    // Entrance animations
+    val contentAlpha = remember { Animatable(0f) }
+    val contentScale = remember { Animatable(0.9f) }
 
     // Direct mathematical overshoot easing (avoids CubicBezierEasing root-solver bugs near 1.0)
     val OvershootEasing = Easing { t ->
@@ -66,18 +76,21 @@ fun SplashScreen(
     LaunchedEffect(Unit) {
         // Run entrance animations in parallel
         launch {
-            appTitleAlpha.animateTo(1f, animationSpec = tween(1200, easing = OvershootEasing))
+            contentAlpha.animateTo(1f, animationSpec = tween(1200, easing = OvershootEasing))
         }
         launch {
-            appTitleScale.animateTo(1f, animationSpec = tween(1000, easing = OvershootEasing))
+            contentScale.animateTo(1f, animationSpec = tween(1000, easing = OvershootEasing))
         }
-        
-        // Wait for splash duration (2000ms total)
-        delay(2000)
-        startExitAnimation = true
-        // Wait for the exit fade animation to finish (600ms) before invoking callback
-        delay(600)
-        onSplashFinished()
+    }
+
+    // Exit routine helper
+    val coroutineScope = rememberCoroutineScope()
+    fun exitSplash() {
+        coroutineScope.launch {
+            startExitAnimation = true
+            delay(600)
+            onSplashFinished()
+        }
     }
 
     Box(
@@ -101,248 +114,347 @@ fun SplashScreen(
                 )
         )
 
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp)
+                .alpha(contentAlpha.value)
+                .scale(contentScale.value),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-            // High-End Animated Canvas Logo (Helm & Pirate Gold Coin)
-            Box(
-                modifier = Modifier
-                    .size(200.dp)
-                    .scale(coinScale),
-                contentAlignment = Alignment.Center
+            // LEFT SIDE: High-End Branding
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+                modifier = Modifier.weight(1f)
             ) {
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    val center = this.center
-                    val radius = size.minDimension / 2.5f
+                // High-End Animated Canvas Logo (Helm & Pirate Gold Coin)
+                Box(
+                    modifier = Modifier
+                        .size(140.dp)
+                        .scale(coinScale),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        val center = this.center
+                        val radius = size.minDimension / 2.5f
 
-                    // 1. Draw Rotating Pirate Helm/Steering Wheel lines
-                    rotate(rotationAngle) {
-                        val strokeWidth = 5.dp.toPx()
-                        val helmColor = Color(0xFF1E222D)
-                        val accentColor = Color(0xFFFFB03A)
+                        // 1. Draw Rotating Pirate Helm/Steering Wheel lines
+                        rotate(rotationAngle) {
+                            val strokeWidth = 4.dp.toPx()
+                            val helmColor = Color(0xFF1E222D)
+                            val accentColor = Color(0xFFFFB03A)
 
-                        // Draw main outer wheel ring
-                        drawCircle(
-                            color = helmColor,
-                            radius = radius * 1.15f,
-                            style = Stroke(width = strokeWidth)
-                        )
-
-                        // Draw 8 Spokes
-                        for (i in 0 until 8) {
-                            val angleRad = Math.toRadians((i * 45).toDouble())
-                            val startX = (center.x + Math.cos(angleRad) * (radius * 0.4f)).toFloat()
-                            val startY = (center.y + Math.sin(angleRad) * (radius * 0.4f)).toFloat()
-                            val endX = (center.x + Math.cos(angleRad) * (radius * 1.4f)).toFloat()
-                            val endY = (center.y + Math.sin(angleRad) * (radius * 1.4f)).toFloat()
-
-                            // Spoke handles extending outward
-                            drawLine(
+                            // Draw main outer wheel ring
+                            drawCircle(
                                 color = helmColor,
-                                start = androidx.compose.ui.geometry.Offset(startX, startY),
-                                end = androidx.compose.ui.geometry.Offset(endX, endY),
-                                strokeWidth = strokeWidth,
-                                cap = StrokeCap.Round
+                                radius = radius * 1.15f,
+                                style = Stroke(width = strokeWidth)
                             )
 
-                            // Handle knobs
-                            val knobX = (center.x + Math.cos(angleRad) * (radius * 1.48f)).toFloat()
-                            val knobY = (center.y + Math.sin(angleRad) * (radius * 1.48f)).toFloat()
-                            drawCircle(
-                                color = accentColor,
-                                radius = 6.dp.toPx(),
-                                center = androidx.compose.ui.geometry.Offset(knobX, knobY)
+                            // Draw 8 Spokes
+                            for (i in 0 until 8) {
+                                val angleRad = Math.toRadians((i * 45).toDouble())
+                                val startX = (center.x + Math.cos(angleRad) * (radius * 0.4f)).toFloat()
+                                val startY = (center.y + Math.sin(angleRad) * (radius * 0.4f)).toFloat()
+                                val endX = (center.x + Math.cos(angleRad) * (radius * 1.4f)).toFloat()
+                                val endY = (center.y + Math.sin(angleRad) * (radius * 1.4f)).toFloat()
+
+                                // Spoke handles extending outward
+                                drawLine(
+                                    color = helmColor,
+                                    start = androidx.compose.ui.geometry.Offset(startX, startY),
+                                    end = androidx.compose.ui.geometry.Offset(endX, endY),
+                                    strokeWidth = strokeWidth,
+                                    cap = StrokeCap.Round
+                                )
+
+                                // Handle knobs
+                                val knobX = (center.x + Math.cos(angleRad) * (radius * 1.48f)).toFloat()
+                                val knobY = (center.y + Math.sin(angleRad) * (radius * 1.48f)).toFloat()
+                                drawCircle(
+                                    color = accentColor,
+                                    radius = 5.dp.toPx(),
+                                    center = androidx.compose.ui.geometry.Offset(knobX, knobY)
+                                )
+                            }
+                        }
+
+                        // 2. Draw Pirate Gold Coin
+                        val goldGradients = listOf(
+                            Color(0xFFD49015),
+                            Color(0xFFFFD466),
+                            Color(0xFFFFB03A),
+                            Color(0xFF9A6000)
+                        )
+                        
+                        drawCircle(
+                            brush = Brush.linearGradient(
+                                colors = goldGradients,
+                                start = androidx.compose.ui.geometry.Offset(0f, 0f),
+                                end = androidx.compose.ui.geometry.Offset(size.width, size.height)
+                            ),
+                            radius = radius
+                        )
+
+                        // Coin Rim Detail
+                        drawCircle(
+                            color = Color(0xFF633D00),
+                            radius = radius * 0.92f,
+                            style = Stroke(width = 1.5.dp.toPx())
+                        )
+
+                        // 3. Gold Coin Reflection/Shine sweeping across the screen
+                        val shineBrush = Brush.linearGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                Color.White.copy(alpha = 0.45f),
+                                Color.Transparent
+                            ),
+                            start = androidx.compose.ui.geometry.Offset(shineSweep, 0f),
+                            end = androidx.compose.ui.geometry.Offset(shineSweep + 80f, size.height)
+                        )
+
+                        drawCircle(
+                            brush = shineBrush,
+                            radius = radius
+                        )
+
+                        // 4. Stylized Pirate Skull details inside the Coin
+                        val skullColor = Color(0xFF2A1900)
+                        val eyeRadius = radius * 0.12f
+                        val noseSize = radius * 0.10f
+
+                        // Forehead/Main skull dome
+                        drawCircle(
+                            color = skullColor,
+                            radius = radius * 0.45f,
+                            center = androidx.compose.ui.geometry.Offset(center.x, center.y - radius * 0.08f)
+                        )
+
+                        // Jaw block
+                        drawRect(
+                            color = skullColor,
+                            topLeft = androidx.compose.ui.geometry.Offset(center.x - radius * 0.22f, center.y + radius * 0.18f),
+                            size = androidx.compose.ui.geometry.Size(radius * 0.44f, radius * 0.24f)
+                        )
+
+                        // Eye sockets (Pirate Eye Patch on left eye)
+                        drawCircle(
+                            color = Color(0xFF0F1115),
+                            radius = eyeRadius * 1.1f,
+                            center = androidx.compose.ui.geometry.Offset(center.x - radius * 0.18f, center.y - radius * 0.05f)
+                        )
+                        // Eye patch strap
+                        drawLine(
+                            color = Color(0xFF0F1115),
+                            start = androidx.compose.ui.geometry.Offset(center.x - radius * 0.45f, center.y - radius * 0.25f),
+                            end = androidx.compose.ui.geometry.Offset(center.x + radius * 0.45f, center.y + radius * 0.15f),
+                            strokeWidth = 2.dp.toPx()
+                        )
+
+                        // Right Eye socket
+                        drawCircle(
+                            color = skullColor,
+                            radius = eyeRadius,
+                            center = androidx.compose.ui.geometry.Offset(center.x + radius * 0.18f, center.y - radius * 0.05f)
+                        )
+                        drawCircle(
+                            color = Color(0xFF5390F5), // Neon Pirate Blue
+                            radius = eyeRadius * 0.4f,
+                            center = androidx.compose.ui.geometry.Offset(center.x + radius * 0.18f, center.y - radius * 0.05f)
+                        )
+
+                        // Skull Nose cavity
+                        drawCircle(
+                            color = Color(0xFF07090C),
+                            radius = noseSize * 0.6f,
+                            center = androidx.compose.ui.geometry.Offset(center.x, center.y + radius * 0.12f)
+                        )
+
+                        // Teeth vertical notches
+                        for (t in -1..1) {
+                            val teethX = center.x + t * (radius * 0.10f)
+                            drawLine(
+                                color = Color(0xFFFFD466),
+                                start = androidx.compose.ui.geometry.Offset(teethX, center.y + radius * 0.24f),
+                                end = androidx.compose.ui.geometry.Offset(teethX, center.y + radius * 0.38f),
+                                strokeWidth = 1.5.dp.toPx()
                             )
                         }
                     }
-
-                    // 2. Draw Pirate Gold Coin
-                    val goldGradients = listOf(
-                        Color(0xFFD49015),
-                        Color(0xFFFFD466),
-                        Color(0xFFFFB03A),
-                        Color(0xFF9A6000)
-                    )
-                    
-                    drawCircle(
-                        brush = Brush.linearGradient(
-                            colors = goldGradients,
-                            start = androidx.compose.ui.geometry.Offset(0f, 0f),
-                            end = androidx.compose.ui.geometry.Offset(size.width, size.height)
-                        ),
-                        radius = radius
-                    )
-
-                    // Coin Rim Detail
-                    drawCircle(
-                        color = Color(0xFF633D00),
-                        radius = radius * 0.92f,
-                        style = Stroke(width = 2.dp.toPx())
-                    )
-
-                    // 3. Gold Coin Reflection/Shine sweeping across the screen
-                    val shineBrush = Brush.linearGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            Color.White.copy(alpha = 0.45f),
-                            Color.Transparent
-                        ),
-                        start = androidx.compose.ui.geometry.Offset(shineSweep, 0f),
-                        end = androidx.compose.ui.geometry.Offset(shineSweep + 100f, size.height)
-                    )
-
-                    drawCircle(
-                        brush = shineBrush,
-                        radius = radius
-                    )
-
-                    // 4. Stylized Pirate Skull details inside the Coin
-                    val skullColor = Color(0xFF2A1900)
-                    val eyeRadius = radius * 0.12f
-                    val noseSize = radius * 0.10f
-
-                    // Forehead/Main skull dome
-                    drawCircle(
-                        color = skullColor,
-                        radius = radius * 0.45f,
-                        center = androidx.compose.ui.geometry.Offset(center.x, center.y - radius * 0.08f)
-                    )
-
-                    // Jaw block
-                    drawRect(
-                        color = skullColor,
-                        topLeft = androidx.compose.ui.geometry.Offset(center.x - radius * 0.22f, center.y + radius * 0.18f),
-                        size = androidx.compose.ui.geometry.Size(radius * 0.44f, radius * 0.24f)
-                    )
-
-                    // Eye sockets (Pirate Eye Patch on left eye)
-                    // Left Eye Patch (Stretched triangle/oval)
-                    drawCircle(
-                        color = Color(0xFF0F1115),
-                        radius = eyeRadius * 1.1f,
-                        center = androidx.compose.ui.geometry.Offset(center.x - radius * 0.18f, center.y - radius * 0.05f)
-                    )
-                    // Eye patch strap
-                    drawLine(
-                        color = Color(0xFF0F1115),
-                        start = androidx.compose.ui.geometry.Offset(center.x - radius * 0.45f, center.y - radius * 0.25f),
-                        end = androidx.compose.ui.geometry.Offset(center.x + radius * 0.45f, center.y + radius * 0.15f),
-                        strokeWidth = 3.dp.toPx()
-                    )
-
-                    // Right Eye socket (Glinting neon blue skeleton eye!)
-                    drawCircle(
-                        color = skullColor,
-                        radius = eyeRadius,
-                        center = androidx.compose.ui.geometry.Offset(center.x + radius * 0.18f, center.y - radius * 0.05f)
-                    )
-                    drawCircle(
-                        color = Color(0xFF5390F5), // Neon Pirate Blue
-                        radius = eyeRadius * 0.4f,
-                        center = androidx.compose.ui.geometry.Offset(center.x + radius * 0.18f, center.y - radius * 0.05f)
-                    )
-
-                    // Skull Nose cavity
-                    drawCircle(
-                        color = Color(0xFF07090C),
-                        radius = noseSize * 0.6f,
-                        center = androidx.compose.ui.geometry.Offset(center.x, center.y + radius * 0.12f)
-                    )
-
-                    // Teeth vertical notches
-                    for (t in -1..1) {
-                        val teethX = center.x + t * (radius * 0.10f)
-                        drawLine(
-                            color = Color(0xFFFFD466),
-                            start = androidx.compose.ui.geometry.Offset(teethX, center.y + radius * 0.24f),
-                            end = androidx.compose.ui.geometry.Offset(teethX, center.y + radius * 0.38f),
-                            strokeWidth = 2.dp.toPx()
-                        )
-                    }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(32.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-            // Text Title - Capt'n Hack Streams
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier
-                    .alpha(appTitleAlpha.value)
-                    .scale(appTitleScale.value)
-            ) {
+                // Text Title - Capt'n Hack Streams
                 Text(
                     text = "CAPT'N HACK",
-                    style = MaterialTheme.typography.displaySmall.copy(
+                    style = MaterialTheme.typography.titleLarge.copy(
                         color = Color(0xFFFFB03A),
                         fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 6.sp,
+                        letterSpacing = 4.sp,
                         fontFamily = FontFamily.Serif
                     ),
                     textAlign = TextAlign.Center
                 )
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(2.dp))
 
                 Text(
                     text = "STREAMS",
                     style = MaterialTheme.typography.titleMedium.copy(
                         color = Color(0xFF5390F5),
                         fontWeight = FontWeight.Bold,
-                        letterSpacing = 10.sp,
+                        letterSpacing = 8.sp,
                         fontFamily = FontFamily.Monospace
                     ),
                     textAlign = TextAlign.Center
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
                     text = "Plundering High-Def Channels",
-                    style = MaterialTheme.typography.labelLarge.copy(
+                    style = MaterialTheme.typography.bodySmall.copy(
                         color = Color(0xFF9096A5),
                         fontWeight = FontWeight.Light,
-                        letterSpacing = 2.sp
+                        letterSpacing = 1.5.sp
                     ),
                     textAlign = TextAlign.Center
                 )
             }
 
-            Spacer(modifier = Modifier.height(48.dp))
-
-            // Linear Progress Loading Bar
-            Box(
+            // RIGHT SIDE: High-Impact Portals Panel &skip button
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
                 modifier = Modifier
-                    .width(160.dp)
-                    .height(3.dp)
-                    .background(Color(0xFF1E222D)),
-                contentAlignment = Alignment.CenterStart
+                    .weight(1.2f)
+                    .padding(start = 16.dp)
             ) {
-                val progressAnimation by transitionState.animateFloat(
-                    initialValue = 0f,
-                    targetValue = 1f,
-                    animationSpec = infiniteRepeatable(
-                        animation = tween(1500, easing = FastOutSlowInEasing),
-                        repeatMode = RepeatMode.Restart
+                Text(
+                    text = "⚓ SPIRIT PORTALS ⚓",
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        color = Color(0xFFFFB03A),
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 2.sp
                     ),
-                    label = "ProgressAnimation"
+                    modifier = Modifier.padding(bottom = 12.dp)
                 )
-                
-                Box(
+
+                // Spirit Guide Card
+                Card(
+                    onClick = { uriHandler.openUri("https://live-cyan-qnvosdowr0.edgeone.app/") },
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF131722).copy(alpha = 0.85f)),
+                    border = BorderStroke(1.dp, Color(0xFFFFB03A).copy(alpha = 0.3f)),
+                    shape = RoundedCornerShape(12.dp),
                     modifier = Modifier
-                        .fillMaxHeight()
-                        .fillMaxWidth(progressAnimation)
-                        .background(
-                            Brush.horizontalGradient(
-                                colors = listOf(
-                                    Color(0xFF5390F5),
-                                    Color(0xFFFFB03A)
-                                )
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .background(Color(0xFFFFB03A).copy(alpha = 0.1f), RoundedCornerShape(8.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("🔮", fontSize = 18.sp)
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Capt'n Hack's Spirit Guide",
+                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                                color = Color.White
                             )
+                            Text(
+                                text = "Infinite wisdom & live prophecies",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFF9096A5)
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = "Visit Spirit Guide",
+                            tint = Color(0xFFFFB03A),
+                            modifier = Modifier.size(16.dp)
                         )
-                )
+                    }
+                }
+
+                // Capt'n Hack Sparrow Portal Card
+                Card(
+                    onClick = { uriHandler.openUri("https://captnhacksparrow.edgeone.app/") },
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF131722).copy(alpha = 0.85f)),
+                    border = BorderStroke(1.dp, Color(0xFF5390F5).copy(alpha = 0.3f)),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .background(Color(0xFF5390F5).copy(alpha = 0.1f), RoundedCornerShape(8.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("🦜", fontSize = 18.sp)
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Capt'n Hack Sparrow Portal",
+                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                                color = Color.White
+                            )
+                            Text(
+                                text = "Exclusive online pirate resources",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFF9096A5)
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = "Visit Portal",
+                            tint = Color(0xFF5390F5),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+
+                // Skip / Enter App Button
+                Button(
+                    onClick = { exitSplash() },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFFFB03A),
+                        contentColor = Color(0xFF07090C)
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(42.dp)
+                ) {
+                    Text(
+                        text = "ENTER IPTV PLAYER ⚔️",
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.ExtraBold)
+                    )
+                }
             }
         }
     }
 }
+
