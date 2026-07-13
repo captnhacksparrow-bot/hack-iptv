@@ -18,8 +18,22 @@ import java.io.File
 
 class IptvViewModel(
     application: Application,
-    private val repository: IptvRepository
+    private val repository: IptvRepository,
+    private val tmdbRepository: TmdbRepository
 ) : AndroidViewModel(application) {
+
+    private val _tmdbSearchResults = MutableStateFlow<List<com.example.data.remote.TmdbResult>>(emptyList())
+    val tmdbSearchResults: StateFlow<List<com.example.data.remote.TmdbResult>> = _tmdbSearchResults.asStateFlow()
+
+    fun searchTmdb(query: String, isMovie: Boolean) {
+        viewModelScope.launch {
+            _tmdbSearchResults.value = if (isMovie) {
+                tmdbRepository.searchMovie(query)
+            } else {
+                tmdbRepository.searchTv(query)
+            }
+        }
+    }
 
     private val prefs = application.getSharedPreferences("iptv_prefs", Context.MODE_PRIVATE)
 
@@ -1190,12 +1204,13 @@ class IptvViewModel(
     // Factory Class
     class Factory(
         private val application: Application,
-        private val repository: IptvRepository
+        private val repository: IptvRepository,
+        private val tmdbRepository: TmdbRepository
     ) : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             if (modelClass.isAssignableFrom(IptvViewModel::class.java)) {
                 @Suppress("UNCHECKED_CAST")
-                return IptvViewModel(application, repository) as T
+                return IptvViewModel(application, repository, tmdbRepository) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class")
         }

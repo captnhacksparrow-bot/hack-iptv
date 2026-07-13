@@ -326,7 +326,7 @@ fun SplashScreen(
                 )
             }
 
-            // RIGHT SIDE: High-Impact Portals Panel &skip button
+            // RIGHT SIDE: High-Impact Welcome Banner
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
@@ -334,104 +334,36 @@ fun SplashScreen(
                     .weight(1.2f)
                     .padding(start = 16.dp)
             ) {
-                Text(
-                    text = "⚓ SPIRIT PORTALS ⚓",
-                    style = MaterialTheme.typography.titleSmall.copy(
-                        color = Color(0xFFFFB03A),
-                        fontWeight = FontWeight.Black,
-                        letterSpacing = 2.sp
-                    ),
-                    modifier = Modifier.padding(bottom = 12.dp)
-                )
-
-                // Spirit Guide Card
                 Card(
-                    onClick = { uriHandler.openUri("https://live-cyan-qnvosdowr0.edgeone.app/") },
                     colors = CardDefaults.cardColors(containerColor = Color(0xFF131722).copy(alpha = 0.85f)),
                     border = BorderStroke(1.dp, Color(0xFFFFB03A).copy(alpha = 0.3f)),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 8.dp)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .background(Color(0xFFFFB03A).copy(alpha = 0.1f), RoundedCornerShape(8.dp)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("🔮", fontSize = 18.sp)
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Capt'n Hack's Spirit Guide",
-                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                                color = Color.White
-                            )
-                            Text(
-                                text = "Infinite wisdom & live prophecies",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color(0xFF9096A5)
-                            )
-                        }
-                        Icon(
-                            imageVector = Icons.Default.PlayArrow,
-                            contentDescription = "Visit Spirit Guide",
-                            tint = Color(0xFFFFB03A),
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                }
-
-                // Capt'n Hack Sparrow Portal Card
-                Card(
-                    onClick = { uriHandler.openUri("https://captnhacksparrow.edgeone.app/") },
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF131722).copy(alpha = 0.85f)),
-                    border = BorderStroke(1.dp, Color(0xFF5390F5).copy(alpha = 0.3f)),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
                         .padding(bottom = 16.dp)
                 ) {
-                    Row(
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            .padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .background(Color(0xFF5390F5).copy(alpha = 0.1f), RoundedCornerShape(8.dp)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("🦜", fontSize = 18.sp)
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Capt'n Hack Sparrow Portal",
-                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                                color = Color.White
+                        Text(
+                            text = "WELCOME TO",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                color = Color(0xFF9096A5),
+                                letterSpacing = 2.sp
                             )
-                            Text(
-                                text = "Exclusive online pirate resources",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color(0xFF9096A5)
-                            )
-                        }
-                        Icon(
-                            imageVector = Icons.Default.PlayArrow,
-                            contentDescription = "Visit Portal",
-                            tint = Color(0xFF5390F5),
-                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "CAPTNHACK IPTV",
+                            style = MaterialTheme.typography.headlineLarge.copy(
+                                color = Color(0xFFFFB03A),
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 2.sp
+                            ),
+                            textAlign = TextAlign.Center
                         )
                     }
                 }

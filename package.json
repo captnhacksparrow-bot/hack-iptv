@@ -3,5 +3,8 @@
   "version": "1.0.0",
   "description": "M3U Playlist Parser & IPTV Player",
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "scripts": {
+    "build": "gradle :app:bundleRelease"
+  }
 }

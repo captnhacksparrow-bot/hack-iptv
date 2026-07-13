@@ -1,5 +1,7 @@
 import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
 import java.util.Base64
+import java.security.KeyStore
+import java.io.FileInputStream
 
 plugins {
   alias(libs.plugins.android.application)
@@ -7,7 +9,6 @@ plugins {
   alias(libs.plugins.google.devtools.ksp)
   alias(libs.plugins.roborazzi)
   alias(libs.plugins.secrets)
-  alias(libs.plugins.google.services)
 }
 
 android {
@@ -25,19 +26,10 @@ android {
   }
 
   signingConfigs {
-    create("debugConfig") {
-      storeFile = file("${rootDir}/debug.keystore")
-      storePassword = "android"
-      keyAlias = "androiddebugkey"
-      keyPassword = "android"
-    }
-
-    // Load release signing properties from project properties or environment
     val ksStorePass = (project.findProperty("STORE_PASSWORD") as? String) ?: System.getenv("STORE_PASSWORD") ?: "changeit"
     val ksAlias = (project.findProperty("KEY_ALIAS") as? String) ?: System.getenv("KEY_ALIAS") ?: "upload"
     val ksKeyPass = (project.findProperty("KEY_PASSWORD") as? String) ?: System.getenv("KEY_PASSWORD") ?: "changeit"
 
-    // Decode base64 keystore if present to prevent UTF-8 corruption from file sync daemon
     val b64File = file("${rootDir}/my-upload-key.jks.base64")
     val decodedKeystoreFile = if (b64File.exists()) {
       val tempKeystore = file("/tmp/my-upload-key-decoded.jks")
@@ -49,20 +41,41 @@ android {
       null
     }
 
-    val ksPath = (project.findProperty("KEYSTORE_PATH") as? String) ?: System.getenv("KEYSTORE_PATH") ?: decodedKeystoreFile?.absolutePath ?: "my-upload-key.jks"
+    val ksPath = (project.findProperty("KEYSTORE_PATH") as? String) ?: System.getenv("KEYSTORE_PATH") ?: decodedKeystoreFile?.absolutePath ?: "captnhack.jks"
 
     create("releaseConfig") {
       val keystoreFile = if (ksPath.startsWith("/")) file(ksPath) else file("${rootDir}/$ksPath")
       if (keystoreFile.exists()) {
         storeFile = keystoreFile
         storePassword = ksStorePass
-        keyAlias = ksAlias
         keyPassword = ksKeyPass
+        
+        var resolvedAlias = ksAlias
+        var resolvedType = "JKS"
+        for (type in listOf("JKS", "PKCS12")) {
+            try {
+                val ks = KeyStore.getInstance(type)
+                ks.load(FileInputStream(keystoreFile), ksStorePass.toCharArray())
+                resolvedType = type
+                if (!ks.containsAlias(ksAlias)) {
+                    val aliases = ks.aliases()
+                    if (aliases.hasMoreElements()) {
+                        resolvedAlias = aliases.nextElement()
+                    }
+                }
+                break
+            } catch (e: Exception) {
+                // Ignore and try next format
+            }
+        }
+        keyAlias = resolvedAlias
+        storeType = resolvedType
       } else {
-        storeFile = file("${rootDir}/debug.keystore")
-        storePassword = "android"
-        keyAlias = "androiddebugkey"
-        keyPassword = "android"
+        storeFile = file("${rootDir}/captnhack.jks")
+        storeType = "PKCS12"
+        storePassword = "captnhack123"
+        keyAlias = "captnhack"
+        keyPassword = "captnhack123"
       }
     }
   }
@@ -76,7 +89,6 @@ android {
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "${rootDir}/proguard-rules.pro")
     }
     debug {
-      signingConfig = signingConfigs.getByName("debugConfig")
     }
   }
   compileOptions {
@@ -97,16 +109,10 @@ secrets {
   defaultPropertiesFileName = ".env.example"
 }
 
-googleServices {
-  missingGoogleServicesStrategy = MissingGoogleServicesStrategy.WARN
-}
-
-
 // Some unused dependencies are commented out below instead of being removed.
 // This makes it easy to add them back in the future if needed.
 dependencies {
   implementation(platform(libs.androidx.compose.bom))
-  implementation(platform(libs.firebase.bom))
   // implementation(libs.accompanist.permissions)
   implementation(libs.androidx.activity.compose)
   // implementation(libs.androidx.camera.camera2)

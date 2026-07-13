@@ -27,9 +27,10 @@ class MainActivity : ComponentActivity() {
         
         val database = AppDatabase.getDatabase(this)
         val repository = IptvRepository(this, database.iptvDao())
+        val tmdbRepository = com.example.data.TmdbRepository("eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJkZWYyMmNmOTgzMmMwMDAwYzJkM2NlYWZmNmUyOGM3OCIsIm5iZiI6MTc3MzAxMjc3OC43NTgwMDAxLCJzdWIiOiI2OWFlMDcyYWFmYmI5Mzk4MDNjMWUyZGQiLCJzY29wZXMiOlsiYXBpX3JlYWQiXSwidmVyc2lvbiI6MX0.J8gJlrcoiKyR0fJTHlvPw-t1hDlnED5AdVHSEMVHClg")
         
         val viewModel: IptvViewModel by viewModels {
-            IptvViewModel.Factory(application, repository)
+            IptvViewModel.Factory(application, repository, tmdbRepository)
         }
 
         requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE

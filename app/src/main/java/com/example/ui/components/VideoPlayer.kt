@@ -8,14 +8,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.RadioButtonChecked
-import androidx.compose.material.icons.filled.Cast
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
@@ -24,10 +23,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.ui.text.font.FontWeight
-import kotlinx.coroutines.delay
-
+import coil.compose.AsyncImage
 import kotlinx.coroutines.flow.SharedFlow
 
 @OptIn(UnstableApi::class)
@@ -36,6 +32,7 @@ fun VideoPlayer(
     isInPipMode: Boolean = false,
     videoUrl: String,
     title: String,
+    thumbnailUrl: String?,
     subtitle: String?,
     onDownloadClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -192,6 +189,15 @@ fun VideoPlayer(
                     .background(Color.Black.copy(alpha = 0.6f), shape = MaterialTheme.shapes.small)
                     .padding(horizontal = 8.dp, vertical = 6.dp)
             ) {
+                if (thumbnailUrl != null) {
+                    AsyncImage(
+                        model = thumbnailUrl,
+                        contentDescription = "Thumbnail",
+                        modifier = Modifier
+                            .size(64.dp)
+                            .clip(MaterialTheme.shapes.small)
+                    )
+                }
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleMedium,
@@ -246,8 +252,6 @@ fun VideoPlayer(
                         modifier = Modifier.size(20.dp)
                     )
                 }
-
-
             }
         }
         } // Close if (!isInPipMode)

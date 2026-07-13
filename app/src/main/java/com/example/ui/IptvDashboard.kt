@@ -1426,6 +1426,7 @@ fun FullScreenPlayerOverlay(
         VideoPlayer(
             videoUrl = activePlayUrl,
             title = selectedChannel.name,
+            thumbnailUrl = selectedChannel.logoUrl,
             subtitle = subtitle,
             isInPipMode = isInPipMode,
             onDownloadClick = {
