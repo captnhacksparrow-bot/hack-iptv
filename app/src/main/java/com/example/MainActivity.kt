@@ -13,6 +13,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.Manifest
+
 import com.example.data.AppDatabase
 import com.example.data.IptvRepository
 import com.example.ui.IptvDashboard
@@ -32,25 +36,39 @@ class MainActivity : ComponentActivity() {
         val viewModel: IptvViewModel by viewModels {
             IptvViewModel.Factory(application, repository, tmdbRepository)
         }
-
-        requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         
         enableEdgeToEdge()
         setContent {
             val appTheme by viewModel.appTheme.collectAsState()
-            MyApplicationTheme(theme = appTheme) {
-                var showSplash by remember { mutableStateOf(true) }
-                if (showSplash) {
-                    com.example.ui.SplashScreen(
-                        onSplashFinished = { showSplash = false }
-                    )
-                } else {
-                    IptvDashboard(
-                        viewModel = viewModel,
-                        isInPipMode = isInPipModeState,
-                        modifier = Modifier.fillMaxSize()
-                    )
+            
+            val permissionsToRequest = mutableListOf<String>()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
+            } else {
+                permissionsToRequest.add(Manifest.permission.READ_EXTERNAL_STORAGE)
+            }
+            if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
+                permissionsToRequest.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            }
+            
+            val requestPermissionLauncher = rememberLauncherForActivityResult(
+                ActivityResultContracts.RequestMultiplePermissions()
+            ) { permissions ->
+                // Handle permission results if needed
+            }
+            
+            LaunchedEffect(Unit) {
+                if (permissionsToRequest.isNotEmpty()) {
+                    requestPermissionLauncher.launch(permissionsToRequest.toTypedArray())
                 }
+            }
+
+            MyApplicationTheme(theme = appTheme) {
+                IptvDashboard(
+                    viewModel = viewModel,
+                    isInPipMode = isInPipModeState,
+                    modifier = Modifier.fillMaxSize()
+                )
             }
         }
     }

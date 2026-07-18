@@ -100,6 +100,132 @@ class IptvRepository(
         return cleanUrl
     }
 
+    suspend fun updatePlaylistFilters(
+        id: Int,
+        name: String,
+        url: String,
+        selectedStreamTypes: String,
+        selectedCountries: String,
+        selectedGenres: String
+    ): Boolean {
+        return withContext(Dispatchers.IO) {
+            val playlist = iptvDao.getPlaylistById(id)
+            if (playlist != null) {
+                val newUrl = if (url.startsWith("http") || url.startsWith("file://") || url.startsWith("xtream://") || url.startsWith("content://") || url.startsWith("asset://")) url else "file://$url"
+                val updated = playlist.copy(
+                    name = name,
+                    url = newUrl,
+                    selectedStreamTypes = selectedStreamTypes,
+                    selectedCountries = selectedCountries,
+                    selectedGenres = selectedGenres,
+                    lastUpdated = System.currentTimeMillis()
+                )
+                iptvDao.updatePlaylist(updated)
+                true
+            } else {
+                false
+            }
+        }
+    }
+
+    suspend fun updatePlaylist(id: Int, name: String, url: String): Boolean {
+        return withContext(Dispatchers.IO) {
+            try {
+                // We just delete channels for this playlist and fetch again
+                iptvDao.deleteChannelsByPlaylist(id)
+                // no epg delete
+                
+                val sanitizedUrl = if (url.startsWith("http")) url else "file://$url"
+                val playlist = iptvDao.getPlaylistById(id)
+                if (playlist != null) {
+                    iptvDao.updatePlaylist(playlist.copy(name = name, url = sanitizedUrl))
+                }
+                
+                if (sanitizedUrl.startsWith("xtream://")) {
+                    val cleanUrl = sanitizedUrl.substring(9)
+                    val firstColon = cleanUrl.indexOf(":")
+                    val lastAt = cleanUrl.lastIndexOf("@")
+                    if (firstColon != -1 && lastAt != -1 && lastAt > firstColon) {
+                        val username = cleanUrl.substring(0, firstColon)
+                        val password = cleanUrl.substring(firstColon + 1, lastAt)
+                        val serverUrl = cleanUrl.substring(lastAt + 1)
+                        return@withContext fetchAndStoreXtreamChannels(id, serverUrl, username, password)
+                    }
+                    return@withContext false
+                }
+                
+                val bodyString = if (sanitizedUrl.startsWith("asset://")) {
+                    val assetPath = sanitizedUrl.substring(8)
+                    context.assets.open(assetPath).use { inputStream ->
+                        inputStream.bufferedReader().use { it.readText() }
+                    }
+                } else if (sanitizedUrl.startsWith("file://")) {
+                    val filePath = sanitizedUrl.substring(7)
+                    java.io.File(filePath).readText()
+                } else if (sanitizedUrl.startsWith("content://")) {
+                    val uri = android.net.Uri.parse(sanitizedUrl)
+                    context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                        inputStream.bufferedReader().use { it.readText() }
+                    } ?: return@withContext false
+                } else {
+                    val request = okhttp3.Request.Builder().url(sanitizedUrl).build()
+                    client.newCall(request).execute().use { response ->
+                        if (!response.isSuccessful) return@withContext false
+                        response.body?.string() ?: return@withContext false
+                    }
+                }
+                
+                val channels = M3uParser.parse(bodyString, id)
+                if (channels.isNotEmpty()) {
+                    val oldFavorites = iptvDao.getFavoriteChannelsStatic(id).map { it.streamUrl }.toSet()
+                    val updatedChannels = channels.map { if (it.streamUrl in oldFavorites) it.copy(isFavorite = true) else it }
+                    iptvDao.insertChannels(updatedChannels)
+                    return@withContext true
+                }
+                return@withContext false
+            } catch (e: Exception) {
+                e.printStackTrace()
+                false
+            }
+        }
+    }
+
+    suspend fun updateXtreamPlaylist(id: Int, name: String, serverUrl: String, username: String, password: String): Boolean {
+        return withContext(Dispatchers.IO) {
+            try {
+                var normalizedUrl = serverUrl.trim()
+                if (!normalizedUrl.startsWith("http://") && !normalizedUrl.startsWith("https://")) {
+                    normalizedUrl = "http://$normalizedUrl"
+                }
+                if (normalizedUrl.contains("/player_api.php")) {
+                    normalizedUrl = normalizedUrl.substring(0, normalizedUrl.indexOf("/player_api.php"))
+                }
+                if (normalizedUrl.contains("/get.php")) {
+                    normalizedUrl = normalizedUrl.substring(0, normalizedUrl.indexOf("/get.php"))
+                }
+                while (normalizedUrl.endsWith("/")) {
+                    normalizedUrl = normalizedUrl.substring(0, normalizedUrl.length - 1)
+                }
+
+                val loginUrl = "$normalizedUrl/player_api.php?username=$username&password=$password"
+                val loginResponse = fetchJsonObject(loginUrl) ?: return@withContext false
+
+                iptvDao.deleteChannelsByPlaylist(id)
+                // no epg delete
+                
+                val playlist = iptvDao.getPlaylistById(id)
+                if (playlist != null) {
+                    iptvDao.updatePlaylist(playlist.copy(name = name, url = "xtream://$username:$password@$normalizedUrl"))
+                }
+                
+                fetchAndStoreXtreamChannels(id, normalizedUrl, username, password)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                false
+            }
+        }
+    }
+
     suspend fun addPlaylist(name: String, url: String): Boolean {
         return withContext(Dispatchers.IO) {
             try {

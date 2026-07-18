@@ -1,0 +1,316 @@
+  1 [ 0] : fun IptvDashboard(
+  2 [ 0] :     isInPipMode: Boolean = false,
+  3 [ 0] :     viewModel: IptvViewModel,
+  4 [ 0] :     modifier: Modifier = Modifier
+  5 [ 1] : ) {
+  6 [ 1] :     val selectedChannel by viewModel.selectedChannel.collectAsState()
+  7 [ 1] :     val activePlayUrl by viewModel.activePlayUrl.collectAsState()
+  8 [ 1] :     val categories by viewModel.categories.collectAsState()
+  9 [ 1] :     val selectedCategory by viewModel.selectedCategory.collectAsState()
+ 10 [ 1] :     val channels by viewModel.filteredChannels.collectAsState()
+ 11 [ 1] :     
+ 12 [ 2] :     val tvNavItems = remember { listOf(
+ 13 [ 2] :         "Live",
+ 14 [ 2] :         "PPV",
+ 15 [ 2] :         "Series",
+ 16 [ 2] :         "Movies"
+ 17 [ 1] :     ) }
+ 18 [ 1] :     
+ 19 [ 1] :     var activeTab by remember { mutableIntStateOf(0) }
+ 20 [ 1] :     var isFullScreen by remember { mutableStateOf(false) }
+ 21 [ 1] : 
+ 22 [ 1] :     val skyBlueGradient = Brush.verticalGradient(
+ 23 [ 1] :         colors = listOf(Color(0xFF00194A), Color(0xFF003D99))
+ 24 [ 1] :     )
+ 25 [ 1] : 
+ 26 [ 1] :     Column(
+ 27 [ 1] :         modifier = modifier
+ 28 [ 1] :             .fillMaxSize()
+ 29 [ 1] :             .background(skyBlueGradient)
+ 30 [ 1] :             .padding(top = 16.dp, start = 24.dp, end = 24.dp, bottom = 12.dp)
+ 31 [ 2] :     ) {
+ 32 [ 2] :         // Top Header
+ 33 [ 2] :         Row(
+ 34 [ 2] :             modifier = Modifier.fillMaxWidth(),
+ 35 [ 2] :             horizontalArrangement = Arrangement.SpaceBetween,
+ 36 [ 2] :             verticalAlignment = Alignment.Top
+ 37 [ 3] :         ) {
+ 38 [ 4] :             Column(modifier = Modifier.weight(1f)) {
+ 39 [ 5] :                 Row(verticalAlignment = Alignment.CenterVertically) {
+ 40 [ 5] :                     com.example.ui.components.CaptnHackLogo(
+ 41 [ 5] :                         modifier = Modifier.height(48.dp),
+ 42 [ 5] :                         showText = true,
+ 43 [ 5] :                         animate = false
+ 44 [ 5] :                     )
+ 45 [ 5] :                     Spacer(modifier = Modifier.width(16.dp))
+ 46 [ 5] :                     Text(
+ 47 [ 5] :                         text = "Home",
+ 48 [ 5] :                         color = Color.White,
+ 49 [ 5] :                         fontSize = 26.sp,
+ 50 [ 5] :                         fontWeight = FontWeight.Normal
+ 51 [ 5] :                     )
+ 52 [ 5] :                     Spacer(modifier = Modifier.width(32.dp))
+ 53 [ 5] :                     // Add Playlist
+ 54 [ 5] :                     Row(
+ 55 [ 5] :                         verticalAlignment = Alignment.CenterVertically,
+ 56 [ 5] :                         modifier = Modifier.clickable { activeTab = 7 }.padding(end = 16.dp)
+ 57 [ 6] :                     ) {
+ 58 [ 6] :                         Icon(Icons.Default.PlaylistAdd, contentDescription = "Playlists", tint = Color.White, modifier = Modifier.size(24.dp).padding(end=4.dp))
+ 59 [ 6] :                         Text("Playlists", color = Color.White, fontSize = 16.sp)
+ 60 [ 5] :                     }
+ 61 [ 5] :                     // Account Details
+ 62 [ 5] :                     Row(
+ 63 [ 5] :                         verticalAlignment = Alignment.CenterVertically,
+ 64 [ 5] :                         modifier = Modifier.clickable { activeTab = 8 }.padding(end = 16.dp)
+ 65 [ 6] :                     ) {
+ 66 [ 6] :                         Icon(Icons.Default.Person, contentDescription = "Profile", tint = Color.White, modifier = Modifier.size(24.dp).padding(end=4.dp))
+ 67 [ 6] :                         Text("Account", color = Color.White, fontSize = 16.sp)
+ 68 [ 5] :                     }
+ 69 [ 5] :                     Icon(Icons.Default.Settings, contentDescription = "Settings", tint = Color.White, modifier = Modifier.size(24.dp).clickable { activeTab = 10 })
+ 70 [ 4] :                 }
+ 71 [ 4] :                 
+ 72 [ 4] :                 Spacer(modifier = Modifier.height(24.dp))
+ 73 [ 4] :                 
+ 74 [ 4] :                 Text(
+ 75 [ 4] :                     text = selectedChannel?.name ?: "Welcome to Sky",
+ 76 [ 4] :                     color = Color.White,
+ 77 [ 4] :                     fontSize = 20.sp,
+ 78 [ 4] :                     fontWeight = FontWeight.Bold,
+ 79 [ 4] :                     maxLines = 1
+ 80 [ 4] :                 )
+ 81 [ 4] :                 Text(
+ 82 [ 4] :                     text = "Press SELECT to view",
+ 83 [ 4] :                     color = Color.White.copy(alpha=0.7f),
+ 84 [ 4] :                     fontSize = 16.sp
+ 85 [ 4] :                 )
+ 86 [ 3] :             }
+ 87 [ 3] : 
+ 88 [ 3] :             // Mini TV Player
+ 89 [ 3] :             Box(
+ 90 [ 3] :                 modifier = Modifier
+ 91 [ 3] :                     .width(320.dp)
+ 92 [ 3] :                     .height(180.dp)
+ 93 [ 3] :                     .background(Color.Black)
+ 94 [ 3] :                     .clickable { isFullScreen = true }
+ 95 [ 4] :             ) {
+ 96 [ 5] :                 if (activePlayUrl != null) {
+ 97 [ 5] :                     VideoPlayer(
+ 98 [ 5] :                         videoUrl = activePlayUrl!!,
+ 99 [ 5] :                         title = selectedChannel?.name ?: "Unknown Channel",
+100 [ 5] :                         thumbnailUrl = null,
+101 [ 5] :                         subtitle = null,
+102 [ 5] :                         onDownloadClick = {},
+103 [ 5] :                         modifier = Modifier.fillMaxSize()
+104 [ 5] :                     )
+105 [ 5] :                 } else {
+106 [ 5] :                     Text(
+107 [ 5] :                         text = "No Signal",
+108 [ 5] :                         color = Color.White,
+109 [ 5] :                         modifier = Modifier.align(Alignment.Center)
+110 [ 5] :                     )
+111 [ 4] :                 }
+112 [ 3] :             }
+113 [ 2] :         }
+114 [ 2] : 
+115 [ 2] :         Spacer(modifier = Modifier.height(8.dp))
+116 [ 2] :         
+117 [ 2] :         Text(
+118 [ 2] :             text = "On Demand",
+119 [ 2] :             color = Color.White,
+120 [ 2] :             fontSize = 16.sp,
+121 [ 2] :             modifier = Modifier.padding(bottom = 8.dp)
+122 [ 2] :         )
+123 [ 2] : 
+124 [ 2] :         // Categories (Tabs)
+125 [ 2] :         LazyRow(
+126 [ 2] :             modifier = Modifier
+127 [ 2] :                 .fillMaxWidth()
+128 [ 2] :                 .background(Color(0xFF002266)),
+129 [ 2] :             horizontalArrangement = Arrangement.Start
+130 [ 3] :         ) {
+131 [ 4] :             items(tvNavItems.size) { index ->
+132 [ 4] :                 val label = tvNavItems[index]
+133 [ 4] :                 val isSelected = activeTab == index
+134 [ 4] :                 Box(
+135 [ 4] :                     modifier = Modifier
+136 [ 4] :                         .background(if (isSelected) Color(0xFF003D99) else Color.Transparent)
+137 [ 5] :                         .clickable { 
+138 [ 5] :                             activeTab = index 
+139 [ 6] :                             when (index) {
+140 [ 6] :                                 0 -> viewModel.selectStreamType(StreamType.LIVE_TV)
+141 [ 6] :                                 1 -> viewModel.selectStreamType(StreamType.PPV)
+142 [ 6] :                                 2 -> viewModel.selectStreamType(StreamType.TV_SHOW)
+143 [ 6] :                                 3 -> viewModel.selectStreamType(StreamType.MOVIE)
+144 [ 5] :                             }
+145 [ 4] :                         }
+146 [ 4] :                         .padding(horizontal = 24.dp, vertical = 12.dp)
+147 [ 5] :                 ) {
+148 [ 5] :                     Text(
+149 [ 5] :                         text = label,
+150 [ 5] :                         color = Color.White,
+151 [ 5] :                         fontSize = 18.sp,
+152 [ 5] :                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+153 [ 5] :                     )
+154 [ 4] :                 }
+155 [ 3] :             }
+156 [ 2] :         }
+157 [ 2] : 
+158 [ 2] :         Spacer(modifier = Modifier.height(16.dp))
+159 [ 2] : 
+160 [ 2] :         // Main Content Area
+161 [ 3] :         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+162 [ 4] :             when (activeTab) {
+163 [ 5] :                 0, 1, 2, 3 -> {
+164 [ 6] :             Row(modifier = Modifier.fillMaxSize()) {
+165 [ 6] :                 // Left Categories Sidebar (Sky Style for internal categories)
+166 [ 6] :                 LazyVerticalGrid(
+167 [ 6] :                     columns = GridCells.Fixed(1),
+168 [ 6] :                     modifier = Modifier.width(180.dp).fillMaxHeight(),
+169 [ 6] :                     verticalArrangement = Arrangement.spacedBy(2.dp)
+170 [ 7] :                 ) {
+171 [ 8] :                     items(categories) { category ->
+172 [ 8] :                         val isSelected = category == selectedCategory
+173 [ 8] :                         Box(
+174 [ 8] :                             modifier = Modifier
+175 [ 8] :                                 .fillMaxWidth()
+176 [ 8] :                                 .background(if (isSelected) Color(0xFFE5B914) else Color(0xFF002266))
+177 [ 8] :                                 .clickable { viewModel.selectCategory(category) }
+178 [ 8] :                                 .padding(12.dp)
+179 [ 9] :                         ) {
+180 [ 9] :                             Text(
+181 [ 9] :                                 text = category,
+182 [ 9] :                                 color = if (isSelected) Color.Black else Color.White,
+183 [ 9] :                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+184 [ 9] :                                 maxLines = 1,
+185 [ 9] :                                 overflow = TextOverflow.Ellipsis
+186 [ 9] :                             )
+187 [ 8] :                         }
+188 [ 7] :                     }
+189 [ 6] :                 }
+190 [ 6] :                 
+191 [ 6] :                 Spacer(modifier = Modifier.width(16.dp))
+192 [ 6] :                 
+193 [ 6] :                 // Right Channels Grid
+194 [ 6] :                 LazyVerticalGrid(
+195 [ 6] :                     columns = GridCells.Fixed(4),
+196 [ 6] :                     modifier = Modifier.weight(1f).fillMaxHeight(),
+197 [ 6] :                     horizontalArrangement = Arrangement.spacedBy(16.dp),
+198 [ 6] :                     verticalArrangement = Arrangement.spacedBy(16.dp)
+199 [ 7] :                 ) {
+200 [ 8] :                     items(channels) { channel ->
+201 [ 8] :                         val isSelected = channel == selectedChannel
+202 [ 8] :                         Card(
+203 [ 8] :                             modifier = Modifier
+204 [ 8] :                                 .aspectRatio(16f / 9f)
+205 [ 8] :                                 .clickable { viewModel.selectChannel(channel) }
+206 [ 8] :                                 .focusable()
+207 [ 8] :                                 .border(
+208 [ 8] :                                     width = if (isSelected) 4.dp else 0.dp,
+209 [ 8] :                                     color = if (isSelected) Color(0xFFFFC107) else Color.Transparent,
+210 [ 8] :                                 ),
+211 [ 8] :                             colors = CardDefaults.cardColors(containerColor = Color.White),
+212 [ 8] :                             shape = RoundedCornerShape(0.dp) // Sky UI has square corners usually
+213 [ 9] :                         ) {
+214 [10] :                             Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+215 [11] :                                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxSize()) {
+216 [12] :                                     if (isSelected) {
+217 [13] :                                         Box(modifier = Modifier.fillMaxWidth().background(Color(0xFFFFC107)).padding(vertical = 4.dp)) {
+218 [13] :                                             Text(
+219 [13] :                                                 text = channel.name, 
+220 [13] :                                                 color = Color.Black, 
+221 [13] :                                                 fontWeight = FontWeight.Bold, 
+222 [13] :                                                 modifier = Modifier.align(Alignment.Center), 
+223 [13] :                                                 maxLines = 1,
+224 [13] :                                                 overflow = TextOverflow.Ellipsis,
+225 [13] :                                                 fontSize = 12.sp
+226 [13] :                                             )
+227 [12] :                                         }
+228 [11] :                                     }
+229 [12] :                                     Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+230 [12] :                                         Text(
+231 [12] :                                             text = channel.name,
+232 [12] :                                             color = Color.Black,
+233 [12] :                                             fontWeight = FontWeight.Bold,
+234 [12] :                                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+235 [12] :                                             modifier = Modifier.padding(8.dp)
+236 [12] :                                         )
+237 [11] :                                     }
+238 [10] :                                 }
+239 [ 9] :                             }
+240 [ 8] :                         }
+241 [ 7] :                     }
+242 [ 6] :                 }
+243 [ 5] :             }
+244 [ 4] :                 }
+245 [ 4] :                 4 -> FavoritesTab(viewModel)
+246 [ 4] :                 5 -> EpgGuideTab(viewModel)
+247 [ 4] :                 6 -> RecordingsTab(viewModel)
+248 [ 4] :                 7 -> PlaylistsTab(viewModel)
+249 [ 4] :                 8 -> ProfileTab(viewModel, onNavigateToPlaylists = { activeTab = 7 })
+250 [ 5] :                 9 -> {
+251 [ 5] :                     val deviceMode by viewModel.deviceMode.collectAsState()
+252 [ 6] :                     if (deviceMode == "TV") {
+253 [ 6] :                         TvConnectionsTab(viewModel)
+254 [ 6] :                     } else {
+255 [ 6] :                         TvControllerTab(viewModel)
+256 [ 5] :                     }
+257 [ 4] :                 }
+258 [ 5] :                 10 -> {
+259 [ 5] :                     // Settings tab if exists, else just empty for now
+260 [ 4] :                 }
+261 [ 3] :             }
+262 [ 2] :         }
+263 [ 2] : 
+264 [ 2] :         Spacer(modifier = Modifier.height(16.dp))
+265 [ 2] : 
+266 [ 2] :         // Bottom Nav (Colored Buttons)
+267 [ 2] :         Row(
+268 [ 2] :             modifier = Modifier.fillMaxWidth(),
+269 [ 2] :             horizontalArrangement = Arrangement.spacedBy(16.dp),
+270 [ 2] :             verticalAlignment = Alignment.CenterVertically
+271 [ 3] :         ) {
+272 [ 4] :             Row(modifier = Modifier.clickable { activeTab = 4 }.padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
+273 [ 4] :                 Box(modifier = Modifier.size(16.dp).background(Color(0xFFE53935), shape = androidx.compose.foundation.shape.CircleShape))
+274 [ 4] :                 Spacer(modifier = Modifier.width(8.dp))
+275 [ 4] :                 Text(text = "Favourites", color = Color.White.copy(alpha=0.8f), fontSize = 16.sp)
+276 [ 3] :             }
+277 [ 4] :             Row(modifier = Modifier.clickable { activeTab = 6 }.padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
+278 [ 4] :                 Box(modifier = Modifier.size(16.dp).background(Color(0xFF43A047), shape = androidx.compose.foundation.shape.CircleShape))
+279 [ 4] :                 Spacer(modifier = Modifier.width(8.dp))
+280 [ 4] :                 Text(text = "Planner", color = Color.White.copy(alpha=0.8f), fontSize = 16.sp)
+281 [ 3] :             }
+282 [ 4] :             Row(modifier = Modifier.clickable { activeTab = 5 }.padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
+283 [ 4] :                 Box(modifier = Modifier.size(16.dp).background(Color(0xFFFFB300), shape = androidx.compose.foundation.shape.CircleShape))
+284 [ 4] :                 Spacer(modifier = Modifier.width(8.dp))
+285 [ 4] :                 Text(text = "TV Guide", color = Color.White.copy(alpha=0.8f), fontSize = 16.sp)
+286 [ 3] :             }
+287 [ 4] :             Row(modifier = Modifier.clickable { /* search logic */ }.padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
+288 [ 4] :                 Box(modifier = Modifier.size(16.dp).background(Color(0xFF1E88E5), shape = androidx.compose.foundation.shape.CircleShape))
+289 [ 4] :                 Spacer(modifier = Modifier.width(8.dp))
+290 [ 4] :                 Text(text = "Search", color = Color.White.copy(alpha=0.8f), fontSize = 16.sp)
+291 [ 3] :             }
+292 [ 4] :             Row(modifier = Modifier.clickable { 
+293 [ 4] :                 viewModel.setDeviceMode("TV")
+294 [ 4] :                 activeTab = 9 
+295 [ 4] :             }.padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
+296 [ 4] :                 Box(modifier = Modifier.size(16.dp).background(Color(0xFF8E24AA), shape = androidx.compose.foundation.shape.CircleShape))
+297 [ 4] :                 Spacer(modifier = Modifier.width(8.dp))
+298 [ 4] :                 Text(text = "Pair TV", color = Color.White.copy(alpha=0.8f), fontSize = 16.sp)
+299 [ 3] :             }
+300 [ 4] :             Row(modifier = Modifier.clickable { 
+301 [ 4] :                 viewModel.setDeviceMode("MOBILE")
+302 [ 4] :                 activeTab = 9 
+303 [ 4] :             }.padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
+304 [ 4] :                 Box(modifier = Modifier.size(16.dp).background(Color(0xFF00ACC1), shape = androidx.compose.foundation.shape.CircleShape))
+305 [ 4] :                 Spacer(modifier = Modifier.width(8.dp))
+306 [ 4] :                 Text(text = "Remote", color = Color.White.copy(alpha=0.8f), fontSize = 16.sp)
+307 [ 3] :             }
+308 [ 3] :             Spacer(modifier = Modifier.weight(1f))
+309 [ 3] :             Text("Press SELECT to view more", color = Color.White.copy(alpha=0.7f), fontSize = 14.sp)
+310 [ 2] :         }
+311 [ 1] :     }
+312 [ 0] :     } // End of isFullScreen else block
+313 [-1] : }
+314 [-1] : 
+315 [-1] : @Composable
+316 [-1] : 

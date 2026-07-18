@@ -109,6 +109,16 @@ class IptvViewModel(
     private val _showTmdb = MutableStateFlow<Boolean>(prefs.getBoolean("show_tmdb", true))
     val showTmdb: StateFlow<Boolean> = _showTmdb.asStateFlow()
 
+    private val _dolbyAudio = kotlinx.coroutines.flow.MutableStateFlow(prefs.getBoolean("dolby_audio", false))
+    val dolbyAudio: kotlinx.coroutines.flow.StateFlow<Boolean> = _dolbyAudio.asStateFlow()
+
+    private val _enableCc = kotlinx.coroutines.flow.MutableStateFlow(prefs.getBoolean("enable_cc", false))
+    val enableCc: kotlinx.coroutines.flow.StateFlow<Boolean> = _enableCc.asStateFlow()
+
+    private val _useVlcPlayer = kotlinx.coroutines.flow.MutableStateFlow(prefs.getBoolean("use_vlc_player", false))
+    val useVlcPlayer: kotlinx.coroutines.flow.StateFlow<Boolean> = _useVlcPlayer.asStateFlow()
+    
+
     // 6-digit PIN state for TV screen pairing
     private val _pairingCode = MutableStateFlow<String>("")
     val pairingCode: StateFlow<String> = _pairingCode.asStateFlow()
@@ -305,8 +315,9 @@ class IptvViewModel(
     @OptIn(ExperimentalCoroutinesApi::class)
     val filteredChannels: StateFlow<List<ChannelEntity>> = combine(
         repository.allChannels,
+        playlists,
         filterStateFlow
-    ) { allChans, filterState ->
+    ) { allChans, playlistsList, filterState ->
         withContext(Dispatchers.Default) {
             val playlistId = filterState.playlistId
             val country = filterState.country
@@ -322,6 +333,40 @@ class IptvViewModel(
                     allChans.filter { it.playlistId == firstPlaylistId }
                 } else {
                     emptyList()
+                }
+            }
+
+            val activePlaylist = if (playlistId != null) {
+                playlistsList.find { it.id == playlistId }
+            } else {
+                val firstPlaylistId = allChans.firstOrNull()?.playlistId
+                playlistsList.find { it.id == firstPlaylistId }
+            }
+
+            if (activePlaylist != null) {
+                // 1. Filter by stream types configuration on playlist
+                val allowedTypesStr = activePlaylist.selectedStreamTypes
+                val allowedTypes = allowedTypesStr.split(",").map { it.trim().uppercase() }.filter { it.isNotEmpty() }
+                if (allowedTypes.isNotEmpty()) {
+                    list = list.filter { it.getStreamType().name in allowedTypes }
+                }
+
+                // 2. Filter by countries configuration on playlist
+                val allowedCountriesStr = activePlaylist.selectedCountries
+                if (allowedCountriesStr != "All" && allowedCountriesStr.isNotEmpty()) {
+                    val allowedCountries = allowedCountriesStr.split(",").map { it.trim().lowercase() }.filter { it.isNotEmpty() }
+                    if (allowedCountries.isNotEmpty()) {
+                        list = list.filter { it.country.lowercase() in allowedCountries }
+                    }
+                }
+
+                // 3. Filter by genres/categories configuration on playlist
+                val allowedGenresStr = activePlaylist.selectedGenres
+                if (allowedGenresStr != "All" && allowedGenresStr.isNotEmpty()) {
+                    val allowedGenres = allowedGenresStr.split(",").map { it.trim().lowercase() }.filter { it.isNotEmpty() }
+                    if (allowedGenres.isNotEmpty()) {
+                        list = list.filter { it.groupTitle.lowercase() in allowedGenres }
+                    }
                 }
             }
             
@@ -607,13 +652,61 @@ class IptvViewModel(
         }
     }
 
+    fun updatePlaylistFilters(
+        id: Int,
+        name: String,
+        url: String,
+        selectedStreamTypes: String,
+        selectedCountries: String,
+        selectedGenres: String
+    ) {
+        viewModelScope.launch {
+            _isAddingPlaylist.value = true
+            _playlistAddError.value = null
+            val success = repository.updatePlaylistFilters(id, name, url, selectedStreamTypes, selectedCountries, selectedGenres)
+            _isAddingPlaylist.value = false
+            if (!success) {
+                _playlistAddError.value = "Failed to update playlist filters."
+            }
+        }
+    }
+
+    fun updatePlaylist(id: Int, name: String, url: String) {
+        viewModelScope.launch {
+            _isAddingPlaylist.value = true
+            _playlistAddError.value = null
+            val success = repository.updatePlaylist(id, name, url)
+            _isAddingPlaylist.value = false
+            if (success) {
+                // If it's active, we might need to refresh
+            } else {
+                _playlistAddError.value = "Failed to parse playlist. Check URL."
+            }
+        }
+    }
+
+    fun updateXtreamPlaylist(id: Int, name: String, serverUrl: String, username: String, password: String) {
+        viewModelScope.launch {
+            _isAddingPlaylist.value = true
+            _playlistAddError.value = null
+            val success = repository.updateXtreamPlaylist(id, name, serverUrl, username, password)
+            _isAddingPlaylist.value = false
+            if (success) {
+                // Same
+            } else {
+                _playlistAddError.value = "Failed to connect to Xtream Codes server. Check credentials."
+            }
+        }
+    }
+
     fun addPlaylist(name: String, url: String) {
         viewModelScope.launch {
             _isAddingPlaylist.value = true
             _playlistAddError.value = null
-            val success = repository.addPlaylist(name, url)
+                        val success = repository.addPlaylist(name, url)
             _isAddingPlaylist.value = false
             if (success) {
+
                 val allPlaylists = repository.getStaticAllPlaylists()
                 val added = allPlaylists.find { it.url == url }
                 if (added != null) {
@@ -630,9 +723,10 @@ class IptvViewModel(
         viewModelScope.launch {
             _isAddingPlaylist.value = true
             _playlistAddError.value = null
-            val success = repository.addXtreamPlaylist(name, serverUrl, username, password)
+                        val success = repository.addXtreamPlaylist(name, serverUrl, username, password)
             _isAddingPlaylist.value = false
             if (success) {
+
                 // Reload preferences to stateflows
                 _premiumUsername.value = prefs.getString("premium_username", "") ?: ""
                 _premiumPassword.value = prefs.getString("premium_password", "") ?: ""

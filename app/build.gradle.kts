@@ -18,9 +18,9 @@ android {
   defaultConfig {
     applicationId = "com.aistudio.captnhackstreams.iptv"
     minSdk = 24
-    targetSdk = 34
-    versionCode = 16
-    versionName = "16.0"
+    targetSdk = 36
+    versionCode = 22
+    versionName = "22.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -83,8 +83,8 @@ android {
   buildTypes {
     release {
       isCrunchPngs = false
-      isMinifyEnabled = false
-      isShrinkResources = false
+      isMinifyEnabled = true
+      isShrinkResources = true
       signingConfig = signingConfigs.getByName("releaseConfig")
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "${rootDir}/proguard-rules.pro")
     }

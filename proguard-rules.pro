@@ -1,21 +1,54 @@
 # Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
 # For more details, see
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Optimize code and shrink resource/class size safely
+-repackageclasses ''
+-allowaccessmodification
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Kotlin Coroutines
+-keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
+-keepnames class kotlinx.coroutines.CoroutineExceptionHandler {}
+-keepclassmembernames class kotlinx.coroutines.android.HandlerContext$ScheduledRunnable {
+    *** run();
+}
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Room Database keep rules
+-keep class * extends androidx.room.RoomDatabase
+-keep class * extends androidx.room.RoomDatabase$Callback
+-dontwarn androidx.room.paging.**
+
+# Retrofit & OkHttp keep rules
+-keepattributes Signature, InnerClasses, EnclosingMethod, AnnotationDefault, *Annotation*
+-dontwarn retrofit2.**
+-keep class retrofit2.** { *; }
+-keepattributes RuntimeVisibleAnnotations, RuntimeVisibleParameterAnnotations
+-keepclassmembers,allowobfuscation class * {
+    @retrofit2.http.* <methods>;
+}
+
+# OkHttp3 keep rules
+-dontwarn okhttp3.**
+-dontwarn okio.**
+-dontwarn javax.annotation.**
+-dontwarn org.conscrypt.**
+-keepnames class okhttp3.internal.publicsuffix.PublicSuffixDatabase
+
+# Moshi rules
+-keep class com.squareup.moshi.** { *; }
+-keep interface com.squareup.moshi.** { *; }
+-dontwarn com.squareup.moshi.**
+# Keep Kotlin Codegen-generated adapters
+-keep class *JsonAdapter { *; }
+-keep @com.squareup.moshi.JsonQualifier public @interface *
+
+# Keep our data entities and models
+-keep class com.example.data.** { *; }
+
+# Coil Keep Rules
+-dontwarn coil.**
+-keep class coil.** { *; }
+
+# Media3 & ExoPlayer Keep Rules
+-keep class androidx.media3.** { *; }
+-dontwarn androidx.media3.**

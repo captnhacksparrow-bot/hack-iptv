@@ -8,7 +8,10 @@ data class PlaylistEntity(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val name: String,
     val url: String,
-    val lastUpdated: Long = System.currentTimeMillis()
+    val lastUpdated: Long = System.currentTimeMillis(),
+    val selectedStreamTypes: String = "LIVE_TV,PPV,TV_SHOW,MOVIE",
+    val selectedCountries: String = "All",
+    val selectedGenres: String = "All"
 )
 
 @Entity(tableName = "channels")
